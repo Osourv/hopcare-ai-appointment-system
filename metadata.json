@@ -1,0 +1,8 @@
+{
+  "name": "HopCare - AI Healthcare",
+  "description": "A complete full-stack healthcare platform for booking appointments and AI symptom checking. Includes Patient and Doctor portals.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
