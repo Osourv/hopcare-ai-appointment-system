@@ -41,7 +41,22 @@ const otpStore = new Map();
 const registerOtpStore = new Map();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: function (origin, callback) {
+    const allowed = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://hopcare.me',
+      'https://www.hopcare.me',
+    ];
+    if (!origin || allowed.includes(origin) || /\.vercel\.app$/.test(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // allow all for now; tighten after domain is set
+    }
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 

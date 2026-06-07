@@ -1,6 +1,6 @@
 import { User, UserRole, Appointment, AppointmentStatus, AiRecord, Doctor, AppointmentDocument } from '../types';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000/api';
 
 /**
  * Service to interact with the Real Node.js Backend.
