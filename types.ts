@@ -41,6 +41,13 @@ export enum AppointmentStatus {
   CANCELLED = 'cancelled'
 }
 
+export interface AppointmentDocument {
+  name: string;
+  type: string;
+  data: string; // base64
+  uploadedAt: string;
+}
+
 export interface Appointment {
   id: string;
   patientId: string;
@@ -54,6 +61,7 @@ export interface Appointment {
   status: AppointmentStatus;
   notes?: string;
   prescription?: string;
+  documents?: AppointmentDocument[];
 }
 
 export interface AiRecord {
@@ -70,4 +78,15 @@ export interface AiRecord {
 export interface AuthResponse {
   user: User;
   token: string;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  type?: 'appointment' | 'system' | 'message';
+  link?: string;
 }

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
-import { Doctor } from '../types';
+import { Doctor, AppointmentDocument } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Calendar, User, CheckCircle, Search, X, Stethoscope, Loader2, GraduationCap, Clock, MapPin, Building2, Star, Briefcase, ArrowRight, Wallet, Sunrise, Sun, Moon, ChevronDown } from 'lucide-react';
+import { Calendar, User, CheckCircle, Search, X, Stethoscope, Loader2, GraduationCap, Clock, MapPin, Building2, Star, Briefcase, ArrowRight, Wallet, Sunrise, Sun, Moon, ChevronDown, UploadCloud, FileText, File, Trash2 } from 'lucide-react';
 
 export const BookAppointment: React.FC = () => {
   const { user } = useAuth();
@@ -16,6 +16,9 @@ export const BookAppointment: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [notes, setNotes] = useState('');
+  const [documents, setDocuments] = useState<AppointmentDocument[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -123,24 +126,112 @@ export const BookAppointment: React.FC = () => {
     };
   }, [location.state]);
 
+  const readFileAsBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files) return;
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    const newDocs: AppointmentDocument[] = [];
+    for (const file of Array.from(files)) {
+      if (!allowed.includes(file.type)) { alert(`${file.name}: unsupported file type.`); continue; }
+      if (file.size > 5 * 1024 * 1024) { alert(`${file.name}: exceeds 5MB limit.`); continue; }
+      if (documents.length + newDocs.length >= 5) { alert('Maximum 5 files allowed.'); break; }
+      const data = await readFileAsBase64(file);
+      newDocs.push({ name: file.name, type: file.type, data, uploadedAt: new Date().toISOString() });
+    }
+    setDocuments(prev => [...prev, ...newDocs]);
+  };
+
+  const loadRazorpayScript = (): Promise<boolean> =>
+    new Promise(resolve => {
+      if (document.getElementById('razorpay-script')) return resolve(true);
+      const script = document.createElement('script');
+      script.id = 'razorpay-script';
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+
   const handleBooking = async () => {
     if (!user || !selectedDoctor || !selectedDate || !selectedTime) return;
-    
+
     setLoading(true);
     try {
-      await api.createAppointment({
+      const fee = selectedDoctor.consultationFee ? Number(selectedDoctor.consultationFee) : 800;
+      const appointmentData = {
         patientId: user.id,
         patientName: user.name,
         doctorId: selectedDoctor.id,
         doctorName: selectedDoctor.name,
         date: selectedDate,
         time: selectedTime,
-        notes: notes ? notes.trim() : '' // Ensure it's a trimmed string
+        notes: notes ? notes.trim() : '',
+        documents,
+      };
+
+      const order = await api.createPaymentOrder(fee);
+      const loaded = await loadRazorpayScript();
+      if (!loaded) throw new Error('Failed to load payment gateway. Check your internet connection.');
+
+      setLoading(false);
+
+      const options: any = {
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'HopCare',
+        description: `Consultation with ${selectedDoctor.name}`,
+        order_id: order.orderId,
+        prefill: {
+          name: user.name,
+          email: user.email || '',
+          contact: (user as any).phone || '9876543210',
+        },
+        notes: {
+          doctor: selectedDoctor.name,
+          date: selectedDate,
+          time: selectedTime,
+        },
+        theme: { color: '#2563eb' },
+        handler: async (response: any) => {
+          setLoading(true);
+          try {
+            await api.verifyPaymentAndBook({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              appointmentData,
+            });
+            setStep(3);
+          } catch (err: any) {
+            alert('Payment succeeded but booking failed: ' + (err.message || 'Please contact support.'));
+          } finally {
+            setLoading(false);
+          }
+        },
+        modal: {
+          ondismiss: () => setLoading(false),
+          confirm_close: true,
+        },
+      };
+
+      // @ts-ignore — Razorpay loaded via CDN script
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', (response: any) => {
+        alert('Payment failed: ' + response.error.description);
+        setLoading(false);
       });
-      setStep(3); // Success step
-    } catch (e) {
+      rzp.open();
+    } catch (e: any) {
       console.error(e);
-    } finally {
+      alert(e.message || 'Could not initiate payment. Please try again.');
       setLoading(false);
     }
   };
@@ -641,19 +732,62 @@ export const BookAppointment: React.FC = () => {
 
             {/* Note and Submit */}
             <div className="mt-8 border-t border-slate-100 pt-6">
-               <textarea 
+               <textarea
                  value={notes}
                  onChange={(e) => setNotes(e.target.value)}
-                 className="w-full p-4 rounded-xl border border-slate-200 outline-none focus:border-teal-600 h-20 resize-none mb-6 text-sm"
+                 className="w-full p-4 rounded-xl border border-slate-200 outline-none focus:border-teal-600 h-20 resize-none mb-4 text-sm"
                  placeholder="Reason for visit (Optional)"
                />
-               <button
+
+               {/* Document Upload */}
+               <div className="mb-6">
+                 <p className="text-sm font-semibold text-slate-700 mb-2">Upload Previous Reports / Prescriptions <span className="text-slate-400 font-normal">(Optional, max 5 files · 5MB each)</span></p>
+                 <input ref={fileInputRef} type="file" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" className="hidden" onChange={e => handleFiles(e.target.files)} />
+
+                 {/* Dropzone */}
+                 <div
+                   onClick={() => fileInputRef.current?.click()}
+                   onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                   onDragLeave={() => setDragOver(false)}
+                   onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
+                   className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${dragOver ? 'border-teal-500 bg-teal-50' : 'border-slate-300 hover:border-teal-400 hover:bg-slate-50'}`}
+                 >
+                   <UploadCloud size={28} className="mx-auto text-slate-400 mb-2" />
+                   <p className="text-sm text-slate-500">Drag & drop files here or <span className="text-teal-600 font-semibold">click to browse</span></p>
+                   <p className="text-xs text-slate-400 mt-1">PDF, JPG, PNG, DOC supported</p>
+                 </div>
+
+                 {/* Uploaded Files List */}
+                 {documents.length > 0 && (
+                   <div className="mt-3 space-y-2">
+                     {documents.map((doc, i) => (
+                       <div key={i} className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-2.5">
+                         {doc.type === 'application/pdf' ? <FileText size={18} className="text-red-500 shrink-0" /> : doc.type.startsWith('image/') ? <File size={18} className="text-blue-500 shrink-0" /> : <File size={18} className="text-slate-400 shrink-0" />}
+                         <span className="flex-1 text-sm text-slate-700 truncate">{doc.name}</span>
+                         <button onClick={() => setDocuments(prev => prev.filter((_, j) => j !== i))} className="text-slate-400 hover:text-red-500 transition-colors">
+                           <Trash2 size={16} />
+                         </button>
+                       </div>
+                     ))}
+                   </div>
+                 )}
+               </div>
+
+<button
                  onClick={handleBooking}
                  disabled={!selectedDate || !selectedTime || loading}
-                 className="w-full bg-[#16887e] text-white py-4 rounded-[14px] font-bold disabled:opacity-50 hover:bg-teal-700 transition-colors shadow-lg shadow-teal-700/20 text-lg"
+                 className="w-full bg-[#16887e] text-white py-4 rounded-[14px] font-bold disabled:opacity-50 hover:bg-teal-700 transition-colors shadow-lg shadow-teal-700/20 text-lg flex items-center justify-center gap-3"
                >
-                 {loading ? 'Confirming...' : 'Confirm Appointment'}
+                 {loading ? (
+                   <><Loader2 className="animate-spin" size={20} /> Processing...</>
+                 ) : (
+                   <>
+                     <Wallet size={20} />
+                     Pay ₹{selectedDoctor.consultationFee || 800} & Confirm
+                   </>
+                 )}
                </button>
+
             </div>
           </div>
         </div>

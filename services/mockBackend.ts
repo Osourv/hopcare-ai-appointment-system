@@ -13,7 +13,8 @@ const STORAGE_KEYS = {
   USERS: 'hopcare_users',
   APPOINTMENTS: 'hopcare_appointments',
   AI_HISTORY: 'hopcare_ai_history',
-  CURRENT_USER: 'hopcare_current_user'
+  CURRENT_USER: 'hopcare_current_user',
+  NOTIFICATIONS: 'hopcare_notifications'
 };
 
 // Seed Data - 20 Doctors (10 Male, 10 Female)
@@ -550,5 +551,40 @@ export const mockBackend = {
   getAiHistory: async (): Promise<AiRecord[]> => {
     const stored = localStorage.getItem(STORAGE_KEYS.AI_HISTORY);
     return stored ? JSON.parse(stored) : [];
+  },
+
+  // --- Notifications ---
+  getNotifications: async (userId: string): Promise<any[]> => {
+    const stored = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+    const all = stored ? JSON.parse(stored) : [];
+    return all.filter((n: any) => n.userId === userId).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  createNotification: async (notification: any): Promise<any> => {
+    const stored = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+    const all = stored ? JSON.parse(stored) : [];
+    const newNotif = {
+      ...notification,
+      id: Math.random().toString(36).substr(2, 9),
+      read: false,
+      createdAt: new Date().toISOString()
+    };
+    all.push(newNotif);
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(all));
+    return newNotif;
+  },
+
+  markNotificationAsRead: async (notifId: string): Promise<void> => {
+    const stored = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+    let all = stored ? JSON.parse(stored) : [];
+    all = all.map((n: any) => n.id === notifId ? { ...n, read: true } : n);
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(all));
+  },
+  
+  markAllNotificationsAsRead: async (userId: string): Promise<void> => {
+    const stored = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+    let all = stored ? JSON.parse(stored) : [];
+    all = all.map((n: any) => n.userId === userId ? { ...n, read: true } : n);
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(all));
   }
 };

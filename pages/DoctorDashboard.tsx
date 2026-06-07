@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Appointment, AppointmentStatus, UserRole, User } from '../types';
-import { Calendar, CheckCircle, XCircle, Clock, User as UserIcon, Bell, Mail, Phone, Plus, X, Loader2, Video } from 'lucide-react';
+import { Calendar, CheckCircle, XCircle, Clock, User as UserIcon, Bell, Mail, Phone, Plus, X, Loader2, Video, FileText, File, Download, Paperclip } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const AVAILABLE_TIME_SLOTS = Array.from({ length: 44 }, (_, i) => {
@@ -52,6 +52,18 @@ export const DoctorDashboard: React.FC = () => {
 
   const handleStatusChange = async (id: string, status: AppointmentStatus) => {
     await api.updateAppointmentStatus(id, status);
+    
+    const appt = appointments.find(a => a.id === id);
+    if (appt) {
+      await api.createNotification({
+        userId: appt.patientId,
+        title: 'Appointment Update',
+        message: `Your appointment with Dr. ${appt.doctorName} on ${appt.date} at ${appt.time} is now ${status}.`,
+        type: 'appointment',
+        link: '/dashboard'
+      });
+    }
+    
     fetchAppointments();
   };
 
@@ -373,13 +385,75 @@ export const DoctorDashboard: React.FC = () => {
                       </div>
                   </div>
                   
-                  {/* Prescription Section */}
+                  {/* Patient Documents */}
+                  {selectedPatient.appointment.documents && selectedPatient.appointment.documents.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="font-bold text-slate-900 mb-2 flex items-center gap-2">
+                        <Paperclip size={16} className="text-blue-500" />
+                        Patient Documents ({selectedPatient.appointment.documents.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedPatient.appointment.documents.map((doc, i) => {
+                          const handleDownload = () => {
+                            const mimeMap: Record<string, string> = {
+                              'application/pdf': 'application/pdf',
+                              'image/jpeg': 'image/jpeg',
+                              'image/png': 'image/png',
+                              'image/gif': 'image/gif',
+                            };
+                            const mime = mimeMap[doc.type] || 'application/octet-stream';
+                            const byteStr = atob(doc.data);
+                            const ab = new ArrayBuffer(byteStr.length);
+                            const ia = new Uint8Array(ab);
+                            for (let j = 0; j < byteStr.length; j++) ia[j] = byteStr.charCodeAt(j);
+                            const blob = new Blob([ab], { type: mime });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url; a.download = doc.name; a.click();
+                            URL.revokeObjectURL(url);
+                          };
+                          const handlePreview = () => {
+                            if (doc.type.startsWith('image/')) {
+                              const win = window.open();
+                              win?.document.write(`<img src="data:${doc.type};base64,${doc.data}" style="max-width:100%" />`);
+                            } else if (doc.type === 'application/pdf') {
+                              const byteStr = atob(doc.data);
+                              const ab = new ArrayBuffer(byteStr.length);
+                              const ia = new Uint8Array(ab);
+                              for (let j = 0; j < byteStr.length; j++) ia[j] = byteStr.charCodeAt(j);
+                              const blob = new Blob([ab], { type: 'application/pdf' });
+                              window.open(URL.createObjectURL(blob));
+                            } else {
+                              handleDownload();
+                            }
+                          };
+                          return (
+                            <div key={i} className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+                              {doc.type === 'application/pdf'
+                                ? <FileText size={18} className="text-red-500 shrink-0" />
+                                : doc.type.startsWith('image/')
+                                  ? <File size={18} className="text-blue-500 shrink-0" />
+                                  : <File size={18} className="text-slate-400 shrink-0" />}
+                              <button onClick={handlePreview} className="flex-1 text-sm text-blue-700 font-medium truncate text-left hover:underline">
+                                {doc.name}
+                              </button>
+                              <button onClick={handleDownload} title="Download" className="text-slate-400 hover:text-blue-600 transition-colors">
+                                <Download size={16} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Prescription / Diagnosis Section */}
                   <div className="mt-6">
-                    <h4 className="font-bold text-slate-900 mb-2">Prescription / Remarks</h4>
-                    <textarea 
+                    <h4 className="font-bold text-slate-900 mb-2">Diagnosis / Prescription</h4>
+                    <textarea
                         value={prescriptionText}
                         onChange={(e) => setPrescriptionText(e.target.value)}
-                        placeholder="Write medical prescription, advice, or remarks here..."
+                        placeholder="Write diagnosis, medical prescription, or advice based on patient's reports..."
                         className="w-full min-h-[120px] p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none resize-y text-slate-700 text-sm"
                     />
                   </div>

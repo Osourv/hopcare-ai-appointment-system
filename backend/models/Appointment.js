@@ -13,7 +13,15 @@ const appointmentSchema = new mongoose.Schema({
     default: 'pending' 
   },
   notes: { type: String },
-  prescription: { type: String }
+  prescription: { type: String },
+  paymentId: { type: String },
+  orderId: { type: String },
+  documents: [{
+    name: { type: String, required: true },
+    type: { type: String, required: true },
+    data: { type: String, required: true }, // base64 encoded
+    uploadedAt: { type: Date, default: Date.now }
+  }]
 }, { 
   timestamps: true,
   collection: 'appointments' // Explicitly set collection name

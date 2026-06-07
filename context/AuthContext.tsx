@@ -11,7 +11,9 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string, role?: UserRole) => Promise<User>;
-  register: (userData: Partial<User>) => Promise<User>;
+  loginWithOtp: (email: string, otp: string) => Promise<User>;
+  register: (userData: Partial<User>) => Promise<void>;
+  registerWithOtp: (email: string, otp: string) => Promise<User>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<void>;
 }
@@ -54,10 +56,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (userData: Partial<User>): Promise<User> => {
+  const loginWithOtp = async (email: string, otp: string): Promise<User> => {
     setLoading(true);
     try {
-      const user = await backend.register(userData);
+      // @ts-ignore — verifyOtp exists on api but not on mockBackend
+      const user = await backend.verifyOtp(email, otp);
+      setUser(user);
+      return user;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (userData: Partial<User>): Promise<void> => {
+    setLoading(true);
+    try {
+      // @ts-ignore — register now sends OTP; account not created until verifyRegisterOtp
+      await backend.register(userData);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const registerWithOtp = async (email: string, otp: string): Promise<User> => {
+    setLoading(true);
+    try {
+      // @ts-ignore — verifyRegisterOtp exists on api but not mockBackend
+      const user = await backend.verifyRegisterOtp(email, otp);
       setUser(user);
       return user;
     } finally {
@@ -92,7 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithOtp, register, registerWithOtp, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

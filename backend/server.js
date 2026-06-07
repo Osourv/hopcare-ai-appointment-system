@@ -3,22 +3,47 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
 require('dotenv').config();
 
 // Import Models
 const Patient = require('./models/Patient');
 const Doctor = require('./models/Doctor');
 const Appointment = require('./models/Appointment');
+const Notification = require('./models/Notification');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_123';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hopcare';
 
+// Nodemailer transporter
+const transporter = nodemailer.createTransport({
+  service: process.env.EMAIL_SERVICE || 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+// Razorpay instance (initialised lazily so server starts even without keys)
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || '',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || '',
+});
+
+// In-memory OTP store: email → { otp, expiresAt, user, userRole }
+const otpStore = new Map();
+
+// In-memory store for pending registrations: email → { otp, expiresAt, userData }
+const registerOtpStore = new Map();
+
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Database Connection
 mongoose.connect(MONGO_URI)
@@ -55,80 +80,177 @@ const authenticateToken = (req, res, next) => {
 
 // --- Routes ---
 
-// 1. Register
+// 1. Register — validates data, sends OTP, does NOT create account yet
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password, role, phone, specialization, qualifications, experience, consultationFee } = req.body;
-    
+
     // Check if user exists in either collection
     const existingPatient = await Patient.findOne({ email });
     const existingDoctor = await Doctor.findOne({ email });
     if (existingPatient || existingDoctor) return res.status(400).json({ message: 'Email already exists' });
 
-    // Hash password
+    // Hash password upfront so it's ready after OTP verification
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Generate 6-digit OTP and store pending registration data
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    registerOtpStore.set(email, {
+      otp,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      userData: { name, email, password: hashedPassword, role, phone, specialization, qualifications, experience, consultationFee }
+    });
+
+    console.log(`\n📧 Register OTP for ${email}: ${otp}\n`);
+
+    // Send OTP email (non-blocking)
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      transporter.sendMail({
+        from: `"HopCare" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: 'Verify your HopCare Account',
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;border:1px solid #e2e8f0;border-radius:12px;">
+            <h2 style="color:#2563eb;margin-bottom:8px;">HopCare Account Verification</h2>
+            <p style="color:#475569;">Use the OTP below to verify your email and complete registration. It expires in <strong>10 minutes</strong>.</p>
+            <div style="font-size:36px;font-weight:bold;letter-spacing:12px;color:#0f172a;text-align:center;padding:24px 0;">
+              ${otp}
+            </div>
+            <p style="color:#94a3b8;font-size:13px;">If you did not request this, please ignore this email.</p>
+          </div>
+        `
+      }).catch(err => console.error('❌ Email send failed:', err.message));
+    } else {
+      console.warn('⚠️  EMAIL_USER / EMAIL_PASS not set in .env — OTP only printed above, not emailed.');
+    }
+
+    res.json({ requiresOtp: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 1b. Verify Register OTP — creates account and issues JWT
+app.post('/api/auth/verify-register-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const record = registerOtpStore.get(email);
+
+    if (!record) return res.status(400).json({ message: 'OTP expired or not found. Please register again.' });
+    if (Date.now() > record.expiresAt) {
+      registerOtpStore.delete(email);
+      return res.status(400).json({ message: 'OTP has expired. Please register again.' });
+    }
+    if (record.otp !== otp) return res.status(400).json({ message: 'Incorrect OTP. Please try again.' });
+
+    registerOtpStore.delete(email);
+
+    const { name, email: userEmail, password, role, phone, specialization, qualifications, experience, consultationFee } = record.userData;
+
     let savedUser;
-    
-    // Create user in appropriate collection based on role
     if (role === 'doctor') {
       const newDoctor = new Doctor({
-        name, email, password: hashedPassword, role: 'doctor', phone,
+        name, email: userEmail, password, role: 'doctor', phone,
         specialization, qualifications, experience, consultationFee,
         availability: ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00']
       });
       savedUser = await newDoctor.save();
     } else {
-      const newPatient = new Patient({
-        name, email, password: hashedPassword, role: 'patient', phone
-      });
+      const newPatient = new Patient({ name, email: userEmail, password, role: 'patient', phone });
       savedUser = await newPatient.save();
     }
-    
-    // Generate Token
-    const token = jwt.sign({ id: savedUser._id, role: savedUser.role }, JWT_SECRET);
 
+    const token = jwt.sign({ id: savedUser._id, role: savedUser.role }, JWT_SECRET);
     res.json({
       token,
-      user: { id: savedUser._id, name: savedUser.name, email: savedUser.email, role: savedUser.role }
+      user: { id: savedUser._id, name: savedUser.name, email: savedUser.email, role: savedUser.role, phone: savedUser.phone }
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// 2. Login
+// 2. Login — verifies credentials, sends OTP, does NOT issue JWT yet
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     // Check Patient collection first
     let user = await Patient.findOne({ email });
     let userRole = 'patient';
-    
+
     // If not found in Patient, check Doctor collection
     if (!user) {
       user = await Doctor.findOne({ email });
       userRole = 'doctor';
     }
-    
+
     if (!user) return res.status(400).json({ message: 'User not found' });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id, role: userRole }, JWT_SECRET);
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000, user, userRole });
+
+    // Always log OTP to console for development/debugging
+    console.log(`\n📧 OTP for ${email}: ${otp}\n`);
+
+    // Send OTP email (non-blocking — OTP is already stored above)
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      transporter.sendMail({
+        from: `"HopCare" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: 'Your HopCare Login OTP',
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;border:1px solid #e2e8f0;border-radius:12px;">
+            <h2 style="color:#2563eb;margin-bottom:8px;">HopCare Login Verification</h2>
+            <p style="color:#475569;">Use the OTP below to complete your login. It expires in <strong>10 minutes</strong>.</p>
+            <div style="font-size:36px;font-weight:bold;letter-spacing:12px;color:#0f172a;text-align:center;padding:24px 0;">
+              ${otp}
+            </div>
+            <p style="color:#94a3b8;font-size:13px;">If you did not request this, please ignore this email.</p>
+          </div>
+        `
+      }).catch(err => console.error('❌ Email send failed:', err.message));
+    } else {
+      console.warn('⚠️  EMAIL_USER / EMAIL_PASS not set in .env — OTP only printed above, not emailed.');
+    }
+
+    res.json({ requiresOtp: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 2b. Verify OTP — issues JWT after successful OTP check
+app.post('/api/auth/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const record = otpStore.get(email);
+
+    if (!record) return res.status(400).json({ message: 'OTP expired or not found. Please login again.' });
+    if (Date.now() > record.expiresAt) {
+      otpStore.delete(email);
+      return res.status(400).json({ message: 'OTP has expired. Please login again.' });
+    }
+    if (record.otp !== otp) return res.status(400).json({ message: 'Incorrect OTP. Please try again.' });
+
+    otpStore.delete(email);
+    const token = jwt.sign({ id: record.user._id, role: record.userRole }, JWT_SECRET);
 
     res.json({
       token,
-      user: { 
-        id: user._id, 
-        name: user.name, 
-        email: user.email, 
-        role: userRole,
-        specialization: user.specialization,
-        availability: user.availability
+      user: {
+        id: record.user._id,
+        name: record.user.name,
+        email: record.user.email,
+        role: record.userRole,
+        phone: record.user.phone,
+        specialization: record.user.specialization,
+        availability: record.user.availability
       }
     });
   } catch (err) {
@@ -189,7 +311,27 @@ app.post('/api/appointments', authenticateToken, async (req, res) => {
   try {
     const newAppointment = new Appointment(req.body);
     const saved = await newAppointment.save();
+
     res.json(saved);
+
+    // Notify the doctor about the new appointment (non-blocking)
+    try {
+      const doctor = await Doctor.findById(saved.doctorId);
+      if (doctor) {
+        const patient = await Patient.findById(saved.patientId);
+        const patientName = patient ? patient.name : 'a patient';
+        const notification = new Notification({
+          userId: saved.doctorId,
+          title: 'New Appointment Booked',
+          message: `You have a new appointment with ${patientName} on ${saved.date} at ${saved.time}.`,
+          type: 'appointment',
+          link: `/doctor/appointments/${saved._id}`
+        });
+        await notification.save();
+      }
+    } catch (notifErr) {
+      console.error('Failed to create appointment notification:', notifErr.message);
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -203,8 +345,29 @@ app.put('/api/appointments/:id/status', authenticateToken, async (req, res) => {
       req.params.id, 
       { status }, 
       { new: true }
-    );
+    ).populate('patientId', 'name').populate('doctorId', 'name');
+
     res.json(updated);
+
+    // Notify the patient about the status change (non-blocking)
+    if (updated) {
+      try {
+        const patientId = updated.patientId?._id || updated.patientId;
+        const doctorName = updated.doctorId?.name || 'your doctor';
+        if (patientId) {
+          const notification = new Notification({
+            userId: patientId,
+            title: `Appointment Status Updated to ${status}`,
+            message: `Your appointment with Dr. ${doctorName} on ${updated.date} at ${updated.time} is now ${status}.`,
+            type: 'appointment',
+            link: `/patient/appointments/${updated._id}`
+          });
+          await notification.save();
+        }
+      } catch (notifErr) {
+        console.error('Failed to create status notification:', notifErr.message);
+      }
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -270,6 +433,18 @@ app.put('/api/appointments/:id/prescription', authenticateToken, async (req, res
       if (nextAppt) {
          nextAppt.status = 'active';
          await nextAppt.save();
+
+         // Notify the patient that their turn is active
+         const doctor = await Doctor.findById(req.user.id);
+         const notification = new Notification({
+           userId: nextAppt.patientId,
+           title: 'Your Turn is Active!',
+           message: `Your consultation with Dr. ${doctor.name} on ${nextAppt.date} at ${nextAppt.time} is now active. Please join the video consultation.`, 
+           type: 'appointment',
+           link: `/patient/video-consultation/${nextAppt._id}`
+         });
+         await notification.save();
+
          return res.json({ message: 'Next patient is active', activePatient: nextAppt });
       }
       res.json({ message: 'Queue is empty' });
@@ -278,7 +453,53 @@ app.put('/api/appointments/:id/prescription', authenticateToken, async (req, res
     }
   });
 
-  // 7. Update User Profile
+// Get Notifications
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+  try {
+    const notifications = await Notification.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Create Notification
+app.post('/api/notifications', authenticateToken, async (req, res) => {
+  try {
+    const notification = new Notification(req.body);
+    const saved = await notification.save();
+    res.json(saved);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Mark Notification as read
+app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+  try {
+    const updated = await Notification.findByIdAndUpdate(
+      req.params.id, 
+      { read: true }, 
+      { new: true }
+    );
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Mark all Notifications as read
+app.put('/api/notifications/read-all', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    await Notification.updateMany({ userId: userId }, { read: true });
+    res.json({ message: 'All marked as read' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 7. Update User Profile
   app.put('/api/users/:id', authenticateToken, async (req, res) => {
     if (req.user.id !== req.params.id) return res.status(403).json({ message: 'Unauthorized' });
     try {
@@ -331,6 +552,125 @@ app.post('/api/ai/predict', authenticateToken, async (req, res) => {
         specialist: "General Physician"
       });
     }
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// --- Payment Routes (Razorpay) ---
+
+// Create a Razorpay order — called before opening the payment modal
+app.post('/api/payment/create-order', authenticateToken, async (req, res) => {
+  try {
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({ message: 'Payment gateway not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to backend/.env' });
+    }
+
+    const { amount } = req.body; // amount in INR (e.g. 800)
+    if (!amount || amount <= 0) return res.status(400).json({ message: 'Invalid amount' });
+
+    const order = await razorpay.orders.create({
+      amount: Math.round(amount * 100), // convert to paise
+      currency: 'INR',
+      receipt: `receipt_${Date.now()}`,
+    });
+
+    res.json({
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: process.env.RAZORPAY_KEY_ID,
+    });
+  } catch (err) {
+    console.error('Razorpay create-order error:', err);
+    res.status(500).json({ message: err.error?.description || err.message });
+  }
+});
+
+// Verify payment signature and create appointment
+app.post('/api/payment/verify', authenticateToken, async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, appointmentData } = req.body;
+
+    // Verify HMAC SHA256 signature
+    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest('hex');
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ message: 'Payment verification failed. Invalid signature.' });
+    }
+
+    // Payment verified — now create the appointment
+    const { patientId, patientName, doctorId, doctorName, date, time, notes, documents } = appointmentData;
+    const newAppointment = new Appointment({
+      patientId, patientName, doctorId, doctorName, date, time,
+      notes: notes || '',
+      documents: documents || [],
+      status: 'pending',
+      paymentId: razorpay_payment_id,
+      orderId: razorpay_order_id,
+    });
+    const saved = await newAppointment.save();
+
+    // Notify the doctor (non-blocking)
+    try {
+      const patient = await Patient.findById(patientId).select('name');
+      const doctor = await Doctor.findById(doctorId).select('name');
+      await Notification.create({
+        userId: doctorId,
+        title: 'New Appointment Request',
+        message: `${patient?.name || patientName} has requested an appointment on ${date} at ${time}.`,
+        type: 'appointment',
+        link: '/doctor-dashboard',
+      });
+    } catch (notifErr) {
+      console.error('Notification error (non-fatal):', notifErr.message);
+    }
+
+    res.json({ success: true, appointment: saved });
+  } catch (err) {
+    console.error('Payment verify error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Test-mode bypass — only works when using rzp_test_ keys
+app.post('/api/payment/test-book', authenticateToken, async (req, res) => {
+  try {
+    const keyId = process.env.RAZORPAY_KEY_ID || '';
+    if (!keyId.startsWith('rzp_test_')) {
+      return res.status(403).json({ message: 'Test booking only available in test mode.' });
+    }
+
+    const { appointmentData } = req.body;
+    const { patientId, patientName, doctorId, doctorName, date, time, notes, documents } = appointmentData;
+
+    const newAppointment = new Appointment({
+      patientId, patientName, doctorId, doctorName, date, time,
+      notes: notes || '',
+      documents: documents || [],
+      status: 'pending',
+      paymentId: `test_${Date.now()}`,
+      orderId: `test_order_${Date.now()}`,
+    });
+    const saved = await newAppointment.save();
+
+    try {
+      await Notification.create({
+        userId: doctorId,
+        title: 'New Appointment Request',
+        message: `${patientName} has requested an appointment on ${date} at ${time}.`,
+        type: 'appointment',
+        link: '/doctor-dashboard',
+      });
+    } catch (notifErr) {
+      console.error('Notification error (non-fatal):', notifErr.message);
+    }
+
+    res.json({ success: true, appointment: saved });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

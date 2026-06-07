@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { UserRole } from '../types';
-import { Activity, ArrowLeft, ShieldCheck, RefreshCw, User, Stethoscope, Check, X, AlertCircle } from 'lucide-react';
+import { api } from '../services/api';
+import { Activity, ArrowLeft, ShieldCheck, RefreshCw, User, Stethoscope, Check, X, AlertCircle, Mail } from 'lucide-react';
 
 const MEDICAL_SPECIALIZATIONS = [
   "General Physician", "Cardiologist", "Dermatologist", "Neurologist", 
@@ -12,12 +13,12 @@ const MEDICAL_SPECIALIZATIONS = [
 ];
 
 export const Auth: React.FC = () => {
-  const { login, register } = useAuth();
+  const { login, loginWithOtp, register, registerWithOtp } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const isRegister = location.pathname === '/register';
-  
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -31,11 +32,18 @@ export const Auth: React.FC = () => {
     role: UserRole.PATIENT
   });
 
+  // OTP step state
+  const [step, setStep] = useState<'credentials' | 'otp'>('credentials');
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [pendingRegisterData, setPendingRegisterData] = useState<any>(null);
+  const [otpInput, setOtpInput] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   // CAPTCHA State
   const [captchaCode, setCaptchaCode] = useState('');
   const [captchaInput, setCaptchaInput] = useState('');
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -43,6 +51,13 @@ export const Auth: React.FC = () => {
   useEffect(() => {
     refreshCaptcha();
   }, []);
+
+  // Resend OTP cooldown countdown
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   // Draw CAPTCHA whenever code changes
   useEffect(() => {
@@ -134,11 +149,36 @@ export const Auth: React.FC = () => {
     e.preventDefault();
     setError('');
 
-    // CAPTCHA Verification (Case Insensitive)
+    // OTP verification step
+    if (step === 'otp') {
+      if (otpInput.length !== 6) {
+        setError('Please enter the 6-digit OTP.');
+        return;
+      }
+      setLoading(true);
+      try {
+        const user = isRegister
+          ? await registerWithOtp(pendingEmail, otpInput)
+          : await loginWithOtp(pendingEmail, otpInput);
+        if (user.role === UserRole.DOCTOR) {
+          navigate('/doctor-dashboard');
+        } else {
+          navigate('/dashboard');
+        }
+      } catch (err: any) {
+        setError(err.message || 'OTP verification failed.');
+        setOtpInput('');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Credentials step — CAPTCHA check first
     if (captchaInput.toLowerCase() !== captchaCode.toLowerCase()) {
       setError('Incorrect security code. Please try again.');
       setCaptchaInput('');
-      refreshCaptcha(); // Rotate captcha to prevent brute force
+      refreshCaptcha();
       return;
     }
 
@@ -156,9 +196,8 @@ export const Auth: React.FC = () => {
     setLoading(true);
 
     try {
-      let user;
       if (isRegister) {
-        user = await register({
+        const regData = {
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
@@ -167,22 +206,44 @@ export const Auth: React.FC = () => {
           qualifications: formData.role === UserRole.DOCTOR ? formData.qualifications : undefined,
           experience: formData.role === UserRole.DOCTOR ? formData.experience : undefined,
           consultationFee: formData.role === UserRole.DOCTOR ? formData.consultationFee : undefined,
-          password: formData.password // Passed for real backend
-        } as any);
+          password: formData.password
+        };
+        await register(regData as any);
+        setPendingEmail(formData.email);
+        setPendingRegisterData(regData);
+        setStep('otp');
+        setResendCooldown(60);
       } else {
-        user = await login(formData.email, formData.password, formData.role);
-      }
-      
-      if (user.role === UserRole.DOCTOR) {
-        navigate('/doctor-dashboard');
-      } else {
-        navigate('/dashboard');
+        // Request OTP — backend verifies credentials and sends email
+        await api.requestOtp(formData.email, formData.password);
+        setPendingEmail(formData.email);
+        setStep('otp');
+        setResendCooldown(60);
       }
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Authentication failed. Please check your credentials.');
-      refreshCaptcha(); 
+      refreshCaptcha();
       setCaptchaInput('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setError('');
+    setLoading(true);
+    try {
+      if (isRegister && pendingRegisterData) {
+        await api.register(pendingRegisterData);
+      } else {
+        await api.requestOtp(pendingEmail, formData.password);
+      }
+      setResendCooldown(60);
+      setOtpInput('');
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend OTP.');
     } finally {
       setLoading(false);
     }
@@ -237,14 +298,75 @@ export const Auth: React.FC = () => {
 
         {/* Right Side - Form */}
         <div className="md:w-7/12 p-6 md:p-12 overflow-y-auto overflow-x-hidden max-h-[none] md:max-h-[90vh]">
+
+          {/* OTP Step */}
+          {step === 'otp' && (
+            <div className="flex flex-col items-center justify-center h-full py-8">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-6">
+                <Mail size={32} className="text-blue-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900 mb-2">Check your email</h3>
+              <p className="text-slate-500 text-center mb-1">
+                {isRegister ? 'Verify your email to complete registration. OTP sent to' : 'We sent a 6-digit OTP to'}
+              </p>
+              <p className="font-semibold text-slate-800 mb-8">{pendingEmail}</p>
+
+              {error && (
+                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-6 flex items-center gap-2 w-full border border-red-100">
+                  <AlertCircle size={16} className="shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="w-full space-y-5">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={otpInput}
+                  onChange={e => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="000000"
+                  className="w-full text-center text-3xl font-mono tracking-[0.5em] px-4 h-16 rounded-xl border-2 border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  disabled={loading || otpInput.length !== 6}
+                  className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {loading && <RefreshCw className="animate-spin" size={20} />}
+                  Verify OTP
+                </button>
+              </form>
+
+              <div className="mt-6 flex flex-col items-center gap-3">
+                <button
+                  onClick={handleResendOtp}
+                  disabled={resendCooldown > 0 || loading}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium disabled:text-slate-400 disabled:cursor-not-allowed transition-colors"
+                >
+                  {resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : 'Resend OTP'}
+                </button>
+                <button
+                  onClick={() => { setStep('credentials'); setError(''); setOtpInput(''); }}
+                  className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
+                >
+                  {isRegister ? '← Back to registration' : '← Back to login'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Credentials / Register Step */}
+          {step === 'credentials' && (<>
           <div className="text-center mb-8">
             <h3 className="text-2xl font-bold text-slate-900">
               {isRegister ? "Create Account" : "Sign In"}
             </h3>
             <p className="text-slate-500 mt-2">
               {isRegister ? "Already have an account?" : "New to HopCare?"}{" "}
-              <Link 
-                to={isRegister ? "/login" : "/register"} 
+              <Link
+                to={isRegister ? "/login" : "/register"}
                 className="text-blue-600 font-bold hover:underline"
               >
                 {isRegister ? "Login here" : "Register now"}
@@ -474,6 +596,7 @@ export const Auth: React.FC = () => {
               {isRegister ? 'Create Account' : 'Sign In'}
             </button>
           </form>
+          </>)}
         </div>
       </div>
     </div>

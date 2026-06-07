@@ -1,4 +1,4 @@
-import { User, UserRole, Appointment, AppointmentStatus, AiRecord, Doctor } from '../types';
+import { User, UserRole, Appointment, AppointmentStatus, AiRecord, Doctor, AppointmentDocument } from '../types';
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -43,12 +43,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, password, role }),
     });
-    
+
     // Store token
     if (data.token) {
       localStorage.setItem('token', data.token);
     }
-    
+
     // Store user info (matching mockBackend behavior)
     const user: User = {
       id: data.user.id || data.user._id,
@@ -68,13 +68,40 @@ export const api = {
       image: data.user.image,
       bio: data.user.bio
     };
-    
+
     localStorage.setItem('hopcare_current_user', JSON.stringify(user));
     return user;
   },
 
-  register: async (userData: Partial<User>): Promise<User> => {
-    const data = await fetchWithAuth(`${API_URL}/auth/register`, {
+  requestOtp: async (email: string, password: string): Promise<void> => {
+    await fetchWithAuth(`${API_URL}/auth/login`, {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    // Backend returns { requiresOtp: true } — no token yet
+  },
+
+  verifyOtp: async (email: string, otp: string): Promise<User> => {
+    const data = await fetchWithAuth(`${API_URL}/auth/verify-otp`, {
+      method: 'POST',
+      body: JSON.stringify({ email, otp }),
+    });
+    if (data.token) localStorage.setItem('token', data.token);
+    const user: User = {
+      id: data.user.id || data.user._id,
+      name: data.user.name,
+      email: data.user.email,
+      role: data.user.role as UserRole,
+      phone: data.user.phone,
+      specialization: data.user.specialization,
+      availability: data.user.availability,
+    };
+    localStorage.setItem('hopcare_current_user', JSON.stringify(user));
+    return user;
+  },
+
+  register: async (userData: Partial<User>): Promise<void> => {
+    await fetchWithAuth(`${API_URL}/auth/register`, {
       method: 'POST',
       body: JSON.stringify({
         name: userData.name,
@@ -88,26 +115,22 @@ export const api = {
         consultationFee: userData.consultationFee,
       }),
     });
-    
-    // Store token
-    if (data.token) {
-      localStorage.setItem('token', data.token);
-    }
-    
-    // Store user info (matching mockBackend behavior)
+    // Backend returns { requiresOtp: true } — account not created yet
+  },
+
+  verifyRegisterOtp: async (email: string, otp: string): Promise<User> => {
+    const data = await fetchWithAuth(`${API_URL}/auth/verify-register-otp`, {
+      method: 'POST',
+      body: JSON.stringify({ email, otp }),
+    });
+    if (data.token) localStorage.setItem('token', data.token);
     const user: User = {
       id: data.user.id || data.user._id,
       name: data.user.name,
       email: data.user.email,
-      role: data.user.role,
-      phone: userData.phone,
-      specialization: userData.specialization,
-      qualifications: userData.qualifications,
-      experience: userData.experience,
-      consultationFee: userData.consultationFee,
-      availability: data.user.availability,
+      role: data.user.role as UserRole,
+      phone: data.user.phone,
     };
-    
     localStorage.setItem('hopcare_current_user', JSON.stringify(user));
     return user;
   },
@@ -203,6 +226,7 @@ export const api = {
   },
 
   getAppointments: async (): Promise<Appointment[]> => {
+    try {
     const appointments = await fetchWithAuth(`${API_URL}/appointments`);
     return appointments.map((appt: any): Appointment => ({
       id: appt._id || appt.id,
@@ -216,8 +240,12 @@ export const api = {
       time: appt.time,
       status: appt.status as AppointmentStatus,
       notes: appt.notes,
-      prescription: appt.prescription
+      prescription: appt.prescription,
+      documents: appt.documents || []
     }));
+    } catch {
+      return [];
+    }
   },
 
   createAppointment: async (appointment: Omit<Appointment, 'id' | 'status'>): Promise<Appointment> => {
@@ -285,6 +313,97 @@ export const api = {
     const userKey = `hopcare_ai_history_${currentUser.id}`;
     const stored = localStorage.getItem(userKey);
     return stored ? JSON.parse(stored) : [];
+  },
+
+  // --- Notifications ---
+  getNotifications: async (userId: string): Promise<any[]> => {
+    try {
+      const data = await fetchWithAuth(`${API_URL}/notifications`);
+      return data.map((n: any) => ({ ...n, id: n._id?.toString() || n.id }));
+    } catch {
+      // Fallback
+      const stored = localStorage.getItem('hopcare_notifications');
+      const all = stored ? JSON.parse(stored) : [];
+      return all.filter((n: any) => n.userId === userId).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+  },
+
+  createNotification: async (notification: any): Promise<any> => {
+    try {
+      const data = await fetchWithAuth(`${API_URL}/notifications`, {
+        method: 'POST',
+        body: JSON.stringify(notification)
+      });
+      return data;
+    } catch {
+      // Fallback
+      const stored = localStorage.getItem('hopcare_notifications');
+      const all = stored ? JSON.parse(stored) : [];
+      const newNotif = {
+        ...notification,
+        id: Math.random().toString(36).substr(2, 9),
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      all.push(newNotif);
+      localStorage.setItem('hopcare_notifications', JSON.stringify(all));
+      return newNotif;
+    }
+  },
+
+  markNotificationAsRead: async (notifId: string): Promise<void> => {
+    try {
+      await fetchWithAuth(`${API_URL}/notifications/${notifId}/read`, {
+        method: 'PUT'
+      });
+    } catch {
+      // Fallback
+      const stored = localStorage.getItem('hopcare_notifications');
+      let all = stored ? JSON.parse(stored) : [];
+      all = all.map((n: any) => n.id === notifId ? { ...n, read: true } : n);
+      localStorage.setItem('hopcare_notifications', JSON.stringify(all));
+    }
+  },
+  
+  markAllNotificationsAsRead: async (userId: string): Promise<void> => {
+    try {
+      await fetchWithAuth(`${API_URL}/notifications/read-all`, {
+        method: 'PUT'
+      });
+    } catch {
+      // Fallback
+      const stored = localStorage.getItem('hopcare_notifications');
+      let all = stored ? JSON.parse(stored) : [];
+      all = all.map((n: any) => n.userId === userId ? { ...n, read: true } : n);
+      localStorage.setItem('hopcare_notifications', JSON.stringify(all));
+    }
+  },
+
+  // --- Payment ---
+  createPaymentOrder: async (amount: number): Promise<{ orderId: string; amount: number; currency: string; keyId: string }> => {
+    return await fetchWithAuth(`${API_URL}/payment/create-order`, {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    });
+  },
+
+  verifyPaymentAndBook: async (paymentData: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+    appointmentData: any;
+  }): Promise<any> => {
+    return await fetchWithAuth(`${API_URL}/payment/verify`, {
+      method: 'POST',
+      body: JSON.stringify(paymentData),
+    });
+  },
+
+  testBook: async (appointmentData: any): Promise<any> => {
+    return await fetchWithAuth(`${API_URL}/payment/test-book`, {
+      method: 'POST',
+      body: JSON.stringify({ appointmentData }),
+    });
   },
 
   // --- AI Symptom Analysis ---

@@ -16,6 +16,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { Footer } from './Footer';
 import { Chatbot } from './Chatbot';
+import { NotificationBell } from './NotificationBell';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout } = useAuth();
@@ -81,6 +82,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             {/* User Profile & Mobile Menu Button */}
             <div className="flex items-center gap-4">
               
+              <NotificationBell />
+
               {/* Profile Dropdown (Desktop) */}
               <div className="hidden md:block relative">
                 <button 
