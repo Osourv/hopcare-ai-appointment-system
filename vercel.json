@@ -1,11 +1,7 @@
 {
-  "experimentalServices": {
-    "frontend": {
-      "framework": "vite",
-      "buildCommand": "npm run build",
-      "outputDirectory": "dist",
-      "installCommand": "npm install",
-      "routePrefix": "/"
-    }
-  }
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "framework": "vite",
+  "ignoreCommand": "exit 1"
 }
