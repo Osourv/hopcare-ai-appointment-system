@@ -175,7 +175,7 @@ export const Auth: React.FC = () => {
     }
 
     // Credentials step — CAPTCHA check first
-    if (captchaInput.toLowerCase() !== captchaCode.toLowerCase()) {
+    if (captchaInput !== captchaCode) {
       setError('Incorrect security code. Please try again.');
       setCaptchaInput('');
       refreshCaptcha();
