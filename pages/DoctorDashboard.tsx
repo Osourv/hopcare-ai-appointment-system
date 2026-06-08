@@ -447,6 +447,17 @@ export const DoctorDashboard: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Patient Notes from patient */}
+                  {selectedPatient.appointment.notes && (
+                    <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                      <h4 className="font-bold text-slate-900 mb-1 flex items-center gap-2 text-sm">
+                        <FileText size={15} className="text-yellow-600" />
+                        Patient Notes
+                      </h4>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{selectedPatient.appointment.notes}</p>
+                    </div>
+                  )}
+
                   {/* Prescription / Diagnosis Section */}
                   <div className="mt-6">
                     <h4 className="font-bold text-slate-900 mb-2">Diagnosis / Prescription</h4>

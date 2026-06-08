@@ -23,6 +23,7 @@ export const PatientDashboard: React.FC = () => {
   const [notesInput, setNotesInput] = useState('');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
+  const [notesSaveError, setNotesSaveError] = useState('');
 
   // Memoize fetch function to reuse it
   const fetchData = useCallback(async () => {
@@ -61,6 +62,7 @@ export const PatientDashboard: React.FC = () => {
     setIsProcessing(false);
     setNotesInput(selectedAppointment?.notes || '');
     setNotesSaved(false);
+    setNotesSaveError('');
   }, [selectedAppointment]);
 
   const upcomingAppointments = appointments.filter(a => a.status !== AppointmentStatus.CANCELLED && a.status !== AppointmentStatus.COMPLETED);
@@ -562,29 +564,33 @@ export const PatientDashboard: React.FC = () => {
                 </p>
                 <textarea
                   value={notesInput}
-                  onChange={e => { setNotesInput(e.target.value); setNotesSaved(false); }}
+                  onChange={e => { setNotesInput(e.target.value); setNotesSaved(false); setNotesSaveError(''); }}
                   placeholder="Add notes about your symptoms, concerns, or questions for the doctor..."
                   rows={4}
                   className="w-full bg-white p-4 rounded-xl border border-slate-200 text-sm text-slate-700 leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
+                {notesSaveError && (
+                  <p className="mt-1 text-xs text-red-500">{notesSaveError}</p>
+                )}
                 <button
                   type="button"
                   disabled={isSavingNotes}
                   onClick={async () => {
                     setIsSavingNotes(true);
+                    setNotesSaveError('');
                     try {
                       await api.updateAppointmentNotes(selectedAppointment.id, notesInput);
                       setAppointments(prev => prev.map(a => a.id === selectedAppointment.id ? { ...a, notes: notesInput } : a));
                       setNotesSaved(true);
-                    } catch (e) {
-                      console.error('Failed to save notes', e);
+                    } catch (e: any) {
+                      setNotesSaveError(e?.message || 'Failed to save notes. Please try again.');
                     } finally {
                       setIsSavingNotes(false);
                     }
                   }}
-                  className="mt-2 w-full bg-slate-100 text-slate-700 font-semibold py-2 rounded-xl hover:bg-slate-200 transition-colors text-sm disabled:opacity-50"
+                  className={`mt-2 w-full font-semibold py-2 rounded-xl transition-colors text-sm disabled:opacity-50 ${notesSaved ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                 >
-                  {isSavingNotes ? 'Saving...' : notesSaved ? 'Saved!' : 'Save Notes'}
+                  {isSavingNotes ? 'Saving...' : notesSaved ? '✓ Saved!' : 'Save Notes'}
                 </button>
               </div>
 
