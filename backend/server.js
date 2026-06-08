@@ -18,23 +18,25 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_123';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hopcare';
 
-// Gmail API email client (uses HTTPS — works on Render free tier)
-const { google } = require('googleapis');
+// Nodemailer email client (Gmail App Password)
+const nodemailer = require('nodemailer');
 
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GMAIL_CLIENT_ID,
-  process.env.GMAIL_CLIENT_SECRET,
-  'https://developers.google.com/oauthplayground'
-);
-oauth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 async function sendEmail(to, subject, html) {
   try {
-    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-    const raw = Buffer.from(
-      `Content-Type: text/html; charset=utf-8\nMIME-Version: 1.0\nTo: ${to}\nFrom: HopCare <${process.env.GMAIL_USER}>\nSubject: ${subject}\n\n${html}`
-    ).toString('base64url');
-    await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
+    await transporter.sendMail({
+      from: `HopCare <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      html,
+    });
     console.log(`📧 Email sent to ${to}`);
   } catch (err) {
     console.error('❌ Email send failed:', err.message);
