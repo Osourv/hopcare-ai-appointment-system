@@ -29,6 +29,11 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   });
   
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('hopcare_current_user');
+      window.location.hash = '#/login';
+    }
     const errorData = await response.json().catch(() => ({ message: 'Request failed' }));
     throw new Error(errorData.message || `HTTP ${response.status}`);
   }

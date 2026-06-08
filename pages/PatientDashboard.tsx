@@ -28,27 +28,31 @@ export const PatientDashboard: React.FC = () => {
   // Memoize fetch function to reuse it
   const fetchData = useCallback(async () => {
     if (user) {
-      const [appts, history, docs] = await Promise.all([
-        api.getAppointments(user.id, UserRole.PATIENT),
-        api.getAiHistory(),
-        api.getDoctors()
-      ]);
-      setAppointments(appts);
-      setAiHistory(history);
-      setDoctors(docs);
-      
-      const q: Record<string, { position: number; waitTime: number; isActive: boolean }> = {};
-      for (const a of appts) {
-        if (a.status === AppointmentStatus.WAITING || a.status === AppointmentStatus.ACTIVE) {
-          try {
-            const info = await api.getQueueStatus(a.id);
-            q[a.id] = info;
-          } catch (e) {
-             console.error("Failed to fetch queue info", e);
+      try {
+        const [appts, history, docs] = await Promise.all([
+          api.getAppointments(user.id, UserRole.PATIENT),
+          api.getAiHistory(),
+          api.getDoctors().catch(() => [])
+        ]);
+        setAppointments(appts);
+        setAiHistory(history);
+        setDoctors(docs);
+
+        const q: Record<string, { position: number; waitTime: number; isActive: boolean }> = {};
+        for (const a of appts) {
+          if (a.status === AppointmentStatus.WAITING || a.status === AppointmentStatus.ACTIVE) {
+            try {
+              const info = await api.getQueueStatus(a.id);
+              q[a.id] = info;
+            } catch (e) {
+              console.error("Failed to fetch queue info", e);
+            }
           }
         }
+        setQueueInfo(q);
+      } catch (e) {
+        console.error("Failed to load dashboard data", e);
       }
-      setQueueInfo(q);
     }
   }, [user]);
 
