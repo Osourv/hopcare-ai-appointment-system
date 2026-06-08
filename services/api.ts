@@ -73,12 +73,12 @@ export const api = {
     return user;
   },
 
-  requestOtp: async (email: string, password: string): Promise<void> => {
-    await fetchWithAuth(`${API_URL}/auth/login`, {
+  requestOtp: async (email: string, password: string): Promise<{ otp?: string }> => {
+    const data = await fetchWithAuth(`${API_URL}/auth/login`, {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    // Backend returns { requiresOtp: true } — no token yet
+    return { otp: data.otp };
   },
 
   verifyOtp: async (email: string, otp: string): Promise<User> => {
@@ -100,8 +100,8 @@ export const api = {
     return user;
   },
 
-  register: async (userData: Partial<User>): Promise<void> => {
-    await fetchWithAuth(`${API_URL}/auth/register`, {
+  register: async (userData: Partial<User>): Promise<{ otp?: string }> => {
+    const data = await fetchWithAuth(`${API_URL}/auth/register`, {
       method: 'POST',
       body: JSON.stringify({
         name: userData.name,
@@ -115,7 +115,7 @@ export const api = {
         consultationFee: userData.consultationFee,
       }),
     });
-    // Backend returns { requiresOtp: true } — account not created yet
+    return { otp: data.otp };
   },
 
   verifyRegisterOtp: async (email: string, otp: string): Promise<User> => {

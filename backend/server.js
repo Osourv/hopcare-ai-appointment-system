@@ -136,7 +136,7 @@ app.post('/api/auth/register', async (req, res) => {
       </div>
     `);
 
-    res.json({ requiresOtp: true });
+    res.json({ requiresOtp: true, otp });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -218,7 +218,7 @@ app.post('/api/auth/login', async (req, res) => {
       </div>
     `);
 
-    res.json({ requiresOtp: true });
+    res.json({ requiresOtp: true, otp });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

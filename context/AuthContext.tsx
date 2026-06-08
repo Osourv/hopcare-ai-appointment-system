@@ -68,11 +68,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (userData: Partial<User>): Promise<void> => {
+  const register = async (userData: Partial<User>): Promise<any> => {
     setLoading(true);
     try {
       // @ts-ignore — register now sends OTP; account not created until verifyRegisterOtp
-      await backend.register(userData);
+      return await backend.register(userData);
     } finally {
       setLoading(false);
     }
