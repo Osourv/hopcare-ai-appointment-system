@@ -19,9 +19,12 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_123';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hopcare';
 
-// Nodemailer transporter
+// Nodemailer transporter (force IPv4 — Render free tier has no IPv6)
 const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE || 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  family: 4,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
