@@ -18,21 +18,14 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_123';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hopcare';
 
-// Nodemailer email client (Gmail App Password)
-const nodemailer = require('nodemailer');
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// Resend email client (HTTPS API — works on Render free tier)
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function sendEmail(to, subject, html) {
   try {
-    await transporter.sendMail({
-      from: `HopCare <${process.env.EMAIL_USER}>`,
+    await resend.emails.send({
+      from: 'HopCare <noreply@hopcare.me>',
       to,
       subject,
       html,
