@@ -1,12 +1,9 @@
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
-
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 require('dotenv').config();
@@ -22,26 +19,21 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_123';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hopcare';
 
-// Build transporter using explicit IPv4 address to avoid Render's IPv6 routing
-let _transporter = null;
-async function getTransporter() {
-  if (_transporter) return _transporter;
-  let host = 'smtp.gmail.com';
+// Resend email client (works on Render free tier — no SMTP needed)
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+async function sendEmail(to, subject, html) {
   try {
-    const addrs = await new Promise((res, rej) =>
-      dns.resolve4('smtp.gmail.com', (err, a) => err ? rej(err) : res(a))
-    );
-    if (addrs && addrs.length) host = addrs[0];
-  } catch (_) {}
-  console.log(`📧 Gmail SMTP host resolved to: ${host}`);
-  _transporter = nodemailer.createTransport({
-    host,
-    port: 587,
-    secure: false,
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-    tls: { rejectUnauthorized: false, servername: 'smtp.gmail.com' },
-  });
-  return _transporter;
+    await resend.emails.send({
+      from: 'HopCare <onboarding@resend.dev>',
+      to,
+      subject,
+      html,
+    });
+    console.log(`📧 Email sent to ${to}`);
+  } catch (err) {
+    console.error('❌ Email send failed:', err.message);
+  }
 }
 
 // Razorpay instance (initialised lazily so server starts even without keys)
@@ -135,26 +127,14 @@ app.post('/api/auth/register', async (req, res) => {
 
     console.log(`\n📧 Register OTP for ${email}: ${otp}\n`);
 
-    // Send OTP email (non-blocking)
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      getTransporter().then(t => t.sendMail({
-        from: `"HopCare" <${process.env.EMAIL_USER}>`,
-        to: email,
-        subject: 'Verify your HopCare Account',
-        html: `
-          <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;border:1px solid #e2e8f0;border-radius:12px;">
-            <h2 style="color:#2563eb;margin-bottom:8px;">HopCare Account Verification</h2>
-            <p style="color:#475569;">Use the OTP below to verify your email and complete registration. It expires in <strong>10 minutes</strong>.</p>
-            <div style="font-size:36px;font-weight:bold;letter-spacing:12px;color:#0f172a;text-align:center;padding:24px 0;">
-              ${otp}
-            </div>
-            <p style="color:#94a3b8;font-size:13px;">If you did not request this, please ignore this email.</p>
-          </div>
-        `
-      })).catch(err => console.error('❌ Email send failed:', err.message));
-    } else {
-      console.warn('⚠️  EMAIL_USER / EMAIL_PASS not set in .env — OTP only printed above, not emailed.');
-    }
+    sendEmail(email, 'Verify your HopCare Account', `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;border:1px solid #e2e8f0;border-radius:12px;">
+        <h2 style="color:#2563eb;margin-bottom:8px;">HopCare Account Verification</h2>
+        <p style="color:#475569;">Use the OTP below to verify your email and complete registration. It expires in <strong>10 minutes</strong>.</p>
+        <div style="font-size:36px;font-weight:bold;letter-spacing:12px;color:#0f172a;text-align:center;padding:24px 0;">${otp}</div>
+        <p style="color:#94a3b8;font-size:13px;">If you did not request this, please ignore this email.</p>
+      </div>
+    `);
 
     res.json({ requiresOtp: true });
   } catch (err) {
@@ -229,26 +209,14 @@ app.post('/api/auth/login', async (req, res) => {
     // Always log OTP to console for development/debugging
     console.log(`\n📧 OTP for ${email}: ${otp}\n`);
 
-    // Send OTP email (non-blocking — OTP is already stored above)
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      getTransporter().then(t => t.sendMail({
-        from: `"HopCare" <${process.env.EMAIL_USER}>`,
-        to: email,
-        subject: 'Your HopCare Login OTP',
-        html: `
-          <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;border:1px solid #e2e8f0;border-radius:12px;">
-            <h2 style="color:#2563eb;margin-bottom:8px;">HopCare Login Verification</h2>
-            <p style="color:#475569;">Use the OTP below to complete your login. It expires in <strong>10 minutes</strong>.</p>
-            <div style="font-size:36px;font-weight:bold;letter-spacing:12px;color:#0f172a;text-align:center;padding:24px 0;">
-              ${otp}
-            </div>
-            <p style="color:#94a3b8;font-size:13px;">If you did not request this, please ignore this email.</p>
-          </div>
-        `
-      })).catch(err => console.error('❌ Email send failed:', err.message));
-    } else {
-      console.warn('⚠️  EMAIL_USER / EMAIL_PASS not set in .env — OTP only printed above, not emailed.');
-    }
+    sendEmail(email, 'Your HopCare Login OTP', `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;border:1px solid #e2e8f0;border-radius:12px;">
+        <h2 style="color:#2563eb;margin-bottom:8px;">HopCare Login Verification</h2>
+        <p style="color:#475569;">Use the OTP below to complete your login. It expires in <strong>10 minutes</strong>.</p>
+        <div style="font-size:36px;font-weight:bold;letter-spacing:12px;color:#0f172a;text-align:center;padding:24px 0;">${otp}</div>
+        <p style="color:#94a3b8;font-size:13px;">If you did not request this, please ignore this email.</p>
+      </div>
+    `);
 
     res.json({ requiresOtp: true });
   } catch (err) {
