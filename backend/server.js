@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { Resend } = require('resend');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 require('dotenv').config();
@@ -19,17 +18,23 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_123';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hopcare';
 
-// Resend email client (works on Render free tier — no SMTP needed)
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Gmail API email client (uses HTTPS — works on Render free tier)
+const { google } = require('googleapis');
+
+const oauth2Client = new google.auth.OAuth2(
+  process.env.GMAIL_CLIENT_ID,
+  process.env.GMAIL_CLIENT_SECRET,
+  'https://developers.google.com/oauthplayground'
+);
+oauth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
 
 async function sendEmail(to, subject, html) {
   try {
-    await resend.emails.send({
-      from: 'HopCare <noreply@hopcare.me>',
-      to,
-      subject,
-      html,
-    });
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+    const raw = Buffer.from(
+      `Content-Type: text/html; charset=utf-8\nMIME-Version: 1.0\nTo: ${to}\nFrom: HopCare <${process.env.GMAIL_USER}>\nSubject: ${subject}\n\n${html}`
+    ).toString('base64url');
+    await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
     console.log(`📧 Email sent to ${to}`);
   } catch (err) {
     console.error('❌ Email send failed:', err.message);
@@ -187,11 +192,9 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check Patient collection first
     let user = await Patient.findOne({ email });
     let userRole = 'patient';
 
-    // If not found in Patient, check Doctor collection
     if (!user) {
       user = await Doctor.findOne({ email });
       userRole = 'doctor';
@@ -202,11 +205,9 @@ app.post('/api/auth/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000, user, userRole });
 
-    // Always log OTP to console for development/debugging
     console.log(`\n📧 OTP for ${email}: ${otp}\n`);
 
     sendEmail(email, 'Your HopCare Login OTP', `
