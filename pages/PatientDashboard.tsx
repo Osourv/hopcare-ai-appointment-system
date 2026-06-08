@@ -19,6 +19,11 @@ export const PatientDashboard: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
+  // Notes editing state
+  const [notesInput, setNotesInput] = useState('');
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+
   // Memoize fetch function to reuse it
   const fetchData = useCallback(async () => {
     if (user) {
@@ -54,6 +59,8 @@ export const PatientDashboard: React.FC = () => {
   useEffect(() => {
     setShowCancelModal(false);
     setIsProcessing(false);
+    setNotesInput(selectedAppointment?.notes || '');
+    setNotesSaved(false);
   }, [selectedAppointment]);
 
   const upcomingAppointments = appointments.filter(a => a.status !== AppointmentStatus.CANCELLED && a.status !== AppointmentStatus.COMPLETED);
@@ -548,18 +555,37 @@ export const PatientDashboard: React.FC = () => {
                 </div>
               )}
 
-              {/* Notes - Fixed Rendering */}
+              {/* Notes - Editable */}
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
                    <FileText size={14} /> Patient Notes
                 </p>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 text-sm text-slate-700 leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap">
-                  {selectedAppointment.notes ? (
-                    `"${selectedAppointment.notes}"`
-                  ) : (
-                    <span className="text-slate-400 italic">No notes added.</span>
-                  )}
-                </div>
+                <textarea
+                  value={notesInput}
+                  onChange={e => { setNotesInput(e.target.value); setNotesSaved(false); }}
+                  placeholder="Add notes about your symptoms, concerns, or questions for the doctor..."
+                  rows={4}
+                  className="w-full bg-white p-4 rounded-xl border border-slate-200 text-sm text-slate-700 leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  disabled={isSavingNotes}
+                  onClick={async () => {
+                    setIsSavingNotes(true);
+                    try {
+                      await api.updateAppointmentNotes(selectedAppointment.id, notesInput);
+                      setAppointments(prev => prev.map(a => a.id === selectedAppointment.id ? { ...a, notes: notesInput } : a));
+                      setNotesSaved(true);
+                    } catch (e) {
+                      console.error('Failed to save notes', e);
+                    } finally {
+                      setIsSavingNotes(false);
+                    }
+                  }}
+                  className="mt-2 w-full bg-slate-100 text-slate-700 font-semibold py-2 rounded-xl hover:bg-slate-200 transition-colors text-sm disabled:opacity-50"
+                >
+                  {isSavingNotes ? 'Saving...' : notesSaved ? 'Saved!' : 'Save Notes'}
+                </button>
               </div>
 
               {/* Footer Action */}

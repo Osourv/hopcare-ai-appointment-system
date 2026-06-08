@@ -285,6 +285,13 @@ export const api = {
     });
   },
 
+  updateAppointmentNotes: async (apptId: string, notes: string): Promise<void> => {
+    await fetchWithAuth(`${API_URL}/appointments/${apptId}/notes`, {
+      method: 'PUT',
+      body: JSON.stringify({ notes }),
+    });
+  },
+
   updateAppointmentPrescription: async (apptId: string, prescription: string): Promise<void> => {
     await fetchWithAuth(`${API_URL}/appointments/${apptId}/prescription`, {
       method: 'PUT',

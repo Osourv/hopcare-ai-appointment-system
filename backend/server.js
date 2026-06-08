@@ -372,6 +372,21 @@ app.put('/api/appointments/:id/status', authenticateToken, async (req, res) => {
   }
 });
 
+// Update appointment notes (by patient)
+app.put('/api/appointments/:id/notes', authenticateToken, async (req, res) => {
+  try {
+    const { notes } = req.body;
+    const updated = await Appointment.findByIdAndUpdate(
+      req.params.id,
+      { notes },
+      { new: true }
+    );
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Update appointment prescription
 app.put('/api/appointments/:id/prescription', authenticateToken, async (req, res) => {
   try {
