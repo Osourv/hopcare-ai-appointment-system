@@ -1,3 +1,6 @@
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first'); // Force IPv4 — Render free tier blocks IPv6
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -19,12 +22,9 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_123';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hopcare';
 
-// Nodemailer transporter (force IPv4 — Render free tier has no IPv6)
+// Nodemailer transporter
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  family: 4,
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
