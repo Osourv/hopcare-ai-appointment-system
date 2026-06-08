@@ -38,7 +38,6 @@ export const Auth: React.FC = () => {
   const [pendingRegisterData, setPendingRegisterData] = useState<any>(null);
   const [otpInput, setOtpInput] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [demoOtp, setDemoOtp] = useState('');
 
   // CAPTCHA State
   const [captchaCode, setCaptchaCode] = useState('');
@@ -209,17 +208,15 @@ export const Auth: React.FC = () => {
           consultationFee: formData.role === UserRole.DOCTOR ? formData.consultationFee : undefined,
           password: formData.password
         };
-        const regResult = await register(regData as any);
+        await register(regData as any);
         setPendingEmail(formData.email);
         setPendingRegisterData(regData);
-        setDemoOtp((regResult as any)?.otp || '');
         setStep('otp');
         setResendCooldown(60);
       } else {
         // Request OTP — backend verifies credentials and sends email
-        const otpResult = await api.requestOtp(formData.email, formData.password);
+        await api.requestOtp(formData.email, formData.password);
         setPendingEmail(formData.email);
-        setDemoOtp(otpResult?.otp || '');
         setStep('otp');
         setResendCooldown(60);
       }
@@ -312,14 +309,7 @@ export const Auth: React.FC = () => {
               <p className="text-slate-500 text-center mb-1">
                 {isRegister ? 'Verify your email to complete registration. OTP sent to' : 'We sent a 6-digit OTP to'}
               </p>
-              <p className="font-semibold text-slate-800 mb-4">{pendingEmail}</p>
-
-              {demoOtp && (
-                <div className="w-full bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-center">
-                  <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1">Your OTP (also sent to email)</p>
-                  <p className="text-3xl font-mono font-bold tracking-[0.5em] text-amber-800">{demoOtp}</p>
-                </div>
-              )}
+              <p className="font-semibold text-slate-800 mb-8">{pendingEmail}</p>
 
               {error && (
                 <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-6 flex items-center gap-2 w-full border border-red-100">
