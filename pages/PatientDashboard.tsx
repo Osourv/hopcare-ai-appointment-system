@@ -58,6 +58,8 @@ export const PatientDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
   }, [fetchData]);
 
   // Reset confirmation state when modal closes or changes
