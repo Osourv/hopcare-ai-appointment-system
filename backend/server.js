@@ -685,4 +685,7 @@ app.post('/api/payment/test-book', authenticateToken, async (req, res) => {
   }
 });
 
+// Keep-alive ping endpoint (used by external cron to prevent Render cold start)
+app.get('/api/ping', (req, res) => res.json({ status: 'ok' }));
+
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
