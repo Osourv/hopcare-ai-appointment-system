@@ -324,7 +324,7 @@ app.post('/api/appointments', authenticateToken, async (req, res) => {
           title: 'New Appointment Booked',
           message: `You have a new appointment with ${patientName} on ${saved.date} at ${saved.time}.`,
           type: 'appointment',
-          link: `/doctor/appointments/${saved._id}`
+          link: `/doctor-dashboard`
         });
         await notification.save();
       }
@@ -359,7 +359,7 @@ app.put('/api/appointments/:id/status', authenticateToken, async (req, res) => {
             title: `Appointment Status Updated to ${status}`,
             message: `Your appointment with Dr. ${doctorName} on ${updated.date} at ${updated.time} is now ${status}.`,
             type: 'appointment',
-            link: `/patient/appointments/${updated._id}`
+            link: `/dashboard`
           });
           await notification.save();
         }
