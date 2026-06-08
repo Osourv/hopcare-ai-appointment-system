@@ -1,5 +1,5 @@
 const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first'); // Force IPv4 — Render free tier blocks IPv6
+dns.setDefaultResultOrder('ipv4first');
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -22,17 +22,27 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_123';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hopcare';
 
-// Nodemailer transporter (port 587 STARTTLS — port 465 blocked on Render free)
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: { rejectUnauthorized: false },
-});
+// Build transporter using explicit IPv4 address to avoid Render's IPv6 routing
+let _transporter = null;
+async function getTransporter() {
+  if (_transporter) return _transporter;
+  let host = 'smtp.gmail.com';
+  try {
+    const addrs = await new Promise((res, rej) =>
+      dns.resolve4('smtp.gmail.com', (err, a) => err ? rej(err) : res(a))
+    );
+    if (addrs && addrs.length) host = addrs[0];
+  } catch (_) {}
+  console.log(`📧 Gmail SMTP host resolved to: ${host}`);
+  _transporter = nodemailer.createTransport({
+    host,
+    port: 587,
+    secure: false,
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    tls: { rejectUnauthorized: false, servername: 'smtp.gmail.com' },
+  });
+  return _transporter;
+}
 
 // Razorpay instance (initialised lazily so server starts even without keys)
 const razorpay = new Razorpay({
@@ -127,7 +137,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     // Send OTP email (non-blocking)
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      transporter.sendMail({
+      getTransporter().then(t => t.sendMail({
         from: `"HopCare" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: 'Verify your HopCare Account',
@@ -141,7 +151,7 @@ app.post('/api/auth/register', async (req, res) => {
             <p style="color:#94a3b8;font-size:13px;">If you did not request this, please ignore this email.</p>
           </div>
         `
-      }).catch(err => console.error('❌ Email send failed:', err.message));
+      })).catch(err => console.error('❌ Email send failed:', err.message));
     } else {
       console.warn('⚠️  EMAIL_USER / EMAIL_PASS not set in .env — OTP only printed above, not emailed.');
     }
@@ -221,7 +231,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     // Send OTP email (non-blocking — OTP is already stored above)
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      transporter.sendMail({
+      getTransporter().then(t => t.sendMail({
         from: `"HopCare" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: 'Your HopCare Login OTP',
@@ -235,7 +245,7 @@ app.post('/api/auth/login', async (req, res) => {
             <p style="color:#94a3b8;font-size:13px;">If you did not request this, please ignore this email.</p>
           </div>
         `
-      }).catch(err => console.error('❌ Email send failed:', err.message));
+      })).catch(err => console.error('❌ Email send failed:', err.message));
     } else {
       console.warn('⚠️  EMAIL_USER / EMAIL_PASS not set in .env — OTP only printed above, not emailed.');
     }
