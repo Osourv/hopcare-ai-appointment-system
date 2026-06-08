@@ -310,16 +310,7 @@ export const DoctorDashboard: React.FC = () => {
                             </>
                           )}
                           
-                          {appt.status === AppointmentStatus.ACTIVE && (
-                            <button
-                              onClick={() => handleNextPatient(appt.date, appt.time)}
-                              className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors shadow-lg shadow-green-600/20 w-full text-sm"
-                            >
-                              <UserIcon size={18} /> Activate Next Patient
-                            </button>
-                          )}
-
-                          {appt.status === AppointmentStatus.WAITING && (
+{appt.status === AppointmentStatus.WAITING && (
                             <button
                               onClick={() => handleStatusChange(appt.id, AppointmentStatus.ACTIVE)}
                               className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors shadow-lg shadow-amber-500/20 w-full text-sm"
