@@ -110,9 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(prev => prev ? { ...prev, ...data } : null);
     } catch (error: any) {
       console.error(error);
-      alert('Failed to save data to the server: ' + (error.message || error));
-      // Reload page to reset optimistic local state
-      window.location.reload();
+      alert('Failed to save profile: ' + (error.message || error));
     }
   };
 
