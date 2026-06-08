@@ -315,7 +315,7 @@ export const DoctorDashboard: React.FC = () => {
                               onClick={() => handleNextPatient(appt.date, appt.time)}
                               className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors shadow-lg shadow-green-600/20 w-full text-sm"
                             >
-                              <UserIcon size={18} /> Next in Queue
+                              <UserIcon size={18} /> Activate Next Patient
                             </button>
                           )}
 

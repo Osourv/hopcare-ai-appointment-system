@@ -438,11 +438,6 @@ app.put('/api/appointments/:id/prescription', authenticateToken, async (req, res
       
       const { date, time } = req.body;
       
-      await Appointment.updateMany(
-        { doctorId: req.user.id, date, time, status: 'active' },
-        { status: 'completed' }
-      );
-      
       const nextAppt = await Appointment.findOne({ doctorId: req.user.id, date, time, status: 'waiting' }).sort({ createdAt: 1 });
       if (nextAppt) {
          nextAppt.status = 'active';
@@ -455,7 +450,7 @@ app.put('/api/appointments/:id/prescription', authenticateToken, async (req, res
            title: 'Your Turn is Active!',
            message: `Your consultation with Dr. ${doctor.name} on ${nextAppt.date} at ${nextAppt.time} is now active. Please join the video consultation.`, 
            type: 'appointment',
-           link: `/patient/video-consultation/${nextAppt._id}`
+           link: `/consultation/${nextAppt._id}`
          });
          await notification.save();
 
