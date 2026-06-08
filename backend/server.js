@@ -25,7 +25,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 async function sendEmail(to, subject, html) {
   try {
     await resend.emails.send({
-      from: 'HopCare <onboarding@resend.dev>',
+      from: 'HopCare <noreply@hopcare.me>',
       to,
       subject,
       html,
