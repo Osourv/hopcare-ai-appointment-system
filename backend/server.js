@@ -22,13 +22,16 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_123';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hopcare';
 
-// Nodemailer transporter
+// Nodemailer transporter (port 587 STARTTLS — port 465 blocked on Render free)
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  tls: { rejectUnauthorized: false },
 });
 
 // Razorpay instance (initialised lazily so server starts even without keys)
