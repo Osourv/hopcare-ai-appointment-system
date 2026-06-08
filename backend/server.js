@@ -18,18 +18,23 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_123';
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/hopcare';
 
-// Resend email client (HTTPS API — works on Render free tier)
-const { Resend } = require('resend');
-const resend = new Resend(process.env.RESEND_API_KEY);
-
+// Brevo email client (HTTPS API — works on Render free tier, instant Gmail delivery)
 async function sendEmail(to, subject, html) {
   try {
-    await resend.emails.send({
-      from: 'HopCare <noreply@hopcare.me>',
-      to,
-      subject,
-      html,
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': process.env.BREVO_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'HopCare', email: 'missourav2@gmail.com' },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
     });
+    if (!response.ok) throw new Error(await response.text());
     console.log(`📧 Email sent to ${to}`);
   } catch (err) {
     console.error('❌ Email send failed:', err.message);
