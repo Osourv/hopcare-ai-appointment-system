@@ -85,7 +85,10 @@ mongoose.connect(MONGO_URI, {
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // Health check — used by UptimeRobot to keep Render free tier alive
-app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', async (req, res) => {
+  try { await mongoose.connection.db.admin().ping(); } catch (_) {}
+  res.json({ status: 'ok' });
+});
 
 // --- Rule-Based AI Logic Database ---
 const CONDITIONS_DB = [
