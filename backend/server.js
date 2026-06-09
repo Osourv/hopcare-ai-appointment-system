@@ -84,6 +84,9 @@ mongoose.connect(MONGO_URI, {
   .then(() => console.log('✅ MongoDB Connected'))
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
+// Health check — used by UptimeRobot to keep Render free tier alive
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
 // --- Rule-Based AI Logic Database ---
 const CONDITIONS_DB = [
   { keywords: ['headache', 'migraine', 'light', 'sensitivity', 'nausea', 'dizzy'], prediction: "Migraine", specialist: "Neurologist", recommendation: "Rest in a dark, quiet room. Stay hydrated and avoid screens." },
