@@ -10,6 +10,7 @@ import { SymptomChecker } from './pages/SymptomChecker';
 import { BookAppointment } from './pages/BookAppointment';
 import { Profile } from './pages/Profile';
 import { VideoConsultation } from './pages/VideoConsultation';
+import { MedicalHistory } from './pages/MedicalHistory';
 import { UserRole } from './types';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode, role?: UserRole }> = ({ children, role }) => {
@@ -64,6 +65,12 @@ const App: React.FC = () => {
           <Route path="/consultation/:appointmentId" element={
             <ProtectedRoute>
               <VideoConsultation />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/medical-history" element={
+            <ProtectedRoute role={UserRole.PATIENT}>
+              <MedicalHistory />
             </ProtectedRoute>
           } />
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Appointment, AiRecord, AppointmentStatus, UserRole, Doctor } from '../types';
-import { Calendar, Clock, MapPin, Activity, BrainCircuit, ArrowRight, X, FileText, User, Stethoscope, CheckCircle, AlertCircle, Trash2, Loader2, AlertTriangle, Video, Download, Paperclip } from 'lucide-react';
+import { Calendar, Clock, MapPin, Activity, BrainCircuit, ArrowRight, X, FileText, User, Stethoscope, CheckCircle, AlertCircle, Trash2, Loader2, AlertTriangle, Video, Download, Paperclip, Star } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 
@@ -28,6 +28,14 @@ export const PatientDashboard: React.FC = () => {
   // Document upload state
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const docInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Review / rating state
+  const reviewsLoadedRef = React.useRef(false);
+  const [ratedApptIds, setRatedApptIds] = useState<Set<string>>(new Set());
+  const [reviewModal, setReviewModal] = useState<{ appointmentId: string; doctorName: string; doctorId: string } | null>(null);
+  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
 
   // Memoize fetch function to reuse it
   const fetchData = useCallback(async () => {
@@ -77,6 +85,17 @@ export const PatientDashboard: React.FC = () => {
 
   const upcomingAppointments = appointments.filter(a => a.status !== AppointmentStatus.CANCELLED && a.status !== AppointmentStatus.COMPLETED);
   const completedAppointments = appointments.filter(a => a.status === AppointmentStatus.COMPLETED);
+
+  useEffect(() => {
+    if (reviewsLoadedRef.current) return;
+    if (completedAppointments.length === 0) return;
+    reviewsLoadedRef.current = true;
+    Promise.all(
+      completedAppointments.map(a => api.checkReview(a.id).then(has => has ? a.id : null).catch(() => null))
+    ).then(results => {
+      setRatedApptIds(new Set(results.filter(Boolean) as string[]));
+    });
+  }, [completedAppointments.length]);
 
   const handleDownloadPrescription = (prescription: string, doctorName: string, date: string) => {
     const doc = new jsPDF();
@@ -421,12 +440,26 @@ export const PatientDashboard: React.FC = () => {
                            </div>
                          </div>
                        </div>
-                       <button 
-                          onClick={() => setSelectedAppointment(appt)}
-                          className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors"
-                       >
-                         View Record
-                       </button>
+                       <div className="flex items-center gap-2">
+                         {ratedApptIds.has(appt.id) ? (
+                           <span className="text-xs text-amber-500 font-semibold flex items-center gap-1 px-3 py-2">
+                             <Star size={13} className="fill-amber-400 text-amber-400" /> Rated
+                           </span>
+                         ) : (
+                           <button
+                             onClick={(e) => { e.stopPropagation(); setRatingValue(0); setRatingComment(''); setReviewModal({ appointmentId: appt.id, doctorName: appt.doctorName, doctorId: appt.doctorId }); }}
+                             className="px-3 py-2 bg-amber-50 text-amber-600 border border-amber-200 rounded-lg text-sm font-semibold hover:bg-amber-100 transition-colors flex items-center gap-1"
+                           >
+                             <Star size={13} /> Rate
+                           </button>
+                         )}
+                         <button
+                           onClick={() => setSelectedAppointment(appt)}
+                           className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors"
+                         >
+                           View Record
+                         </button>
+                       </div>
                     </div>
                   </div>
                 );
@@ -702,8 +735,17 @@ export const PatientDashboard: React.FC = () => {
 
               {/* Footer Action */}
               <div className="pt-2 flex flex-col gap-3">
+                 {selectedAppointment.status === AppointmentStatus.COMPLETED && !ratedApptIds.has(selectedAppointment.id) && (
+                   <button
+                     type="button"
+                     onClick={() => { setRatingValue(0); setRatingComment(''); setReviewModal({ appointmentId: selectedAppointment.id, doctorName: selectedAppointment.doctorName, doctorId: selectedAppointment.doctorId }); }}
+                     className="w-full bg-amber-500 text-white font-bold py-3 rounded-xl hover:bg-amber-600 transition-colors flex items-center justify-center gap-2"
+                   >
+                     <Star size={18} /> Rate Your Visit
+                   </button>
+                 )}
                  <div className="flex flex-col sm:flex-row gap-3">
-                   <button 
+                   <button
                      type="button"
                      onClick={() => setSelectedAppointment(null)}
                      className="flex-1 bg-slate-100 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-200 transition-colors"
@@ -733,6 +775,67 @@ export const PatientDashboard: React.FC = () => {
                    </button>
                  )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rating Modal */}
+      {reviewModal && (
+        <div
+          className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          onClick={() => { if (!isSubmittingRating) setReviewModal(null); }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 animate-slide-up" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Rate Your Visit</h3>
+            <p className="text-sm text-slate-500 mb-5">With {reviewModal.doctorName}</p>
+            <div className="flex justify-center gap-2 mb-5">
+              {[1, 2, 3, 4, 5].map(n => (
+                <button key={n} type="button" onClick={() => setRatingValue(n)} className="transition-transform hover:scale-110">
+                  <Star
+                    size={36}
+                    className={n <= ratingValue ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}
+                  />
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={ratingComment}
+              onChange={e => setRatingComment(e.target.value)}
+              placeholder="Share your experience (optional)"
+              maxLength={300}
+              rows={3}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 mb-4"
+            />
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setReviewModal(null)}
+                disabled={isSubmittingRating}
+                className="flex-1 py-2.5 border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={ratingValue === 0 || isSubmittingRating}
+                onClick={async () => {
+                  if (!reviewModal || ratingValue === 0) return;
+                  setIsSubmittingRating(true);
+                  try {
+                    await api.submitReview(reviewModal.appointmentId, reviewModal.doctorId, ratingValue, ratingComment);
+                    setRatedApptIds(prev => new Set([...prev, reviewModal.appointmentId]));
+                    setReviewModal(null);
+                  } catch (e: any) {
+                    alert(e?.message || 'Failed to submit review');
+                  } finally {
+                    setIsSubmittingRating(false);
+                  }
+                }}
+                className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isSubmittingRating ? <><Loader2 size={16} className="animate-spin" /> Submitting...</> : 'Submit Review'}
+              </button>
             </div>
           </div>
         </div>

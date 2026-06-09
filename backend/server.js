@@ -12,6 +12,7 @@ const Patient = require('./models/Patient');
 const Doctor = require('./models/Doctor');
 const Appointment = require('./models/Appointment');
 const Notification = require('./models/Notification');
+const Review = require('./models/Review');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -699,6 +700,56 @@ app.post('/api/payment/test-book', authenticateToken, async (req, res) => {
     }
 
     res.json({ success: true, appointment: saved });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// --- Reviews ---
+
+app.post('/api/reviews', authenticateToken, async (req, res) => {
+  try {
+    const { appointmentId, doctorId, rating, comment } = req.body;
+    if (!appointmentId || !doctorId || !rating) {
+      return res.status(400).json({ message: 'appointmentId, doctorId, and rating are required' });
+    }
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+    }
+
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+    if (appointment.patientId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    if (appointment.status !== 'completed') {
+      return res.status(400).json({ message: 'Can only review completed appointments' });
+    }
+
+    const existing = await Review.findOne({ appointmentId });
+    if (existing) return res.status(409).json({ message: 'You have already reviewed this appointment' });
+
+    const review = new Review({ patientId: req.user.id, doctorId, appointmentId, rating, comment: comment || '' });
+    await review.save();
+
+    const allReviews = await Review.find({ doctorId });
+    const avg = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
+    await Doctor.findByIdAndUpdate(doctorId, {
+      rating: Math.round(avg * 10) / 10,
+      reviewCount: allReviews.length,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: 'Already reviewed' });
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get('/api/reviews/check/:appointmentId', authenticateToken, async (req, res) => {
+  try {
+    const review = await Review.findOne({ appointmentId: req.params.appointmentId });
+    res.json({ hasReview: !!review });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

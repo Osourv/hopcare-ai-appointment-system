@@ -425,6 +425,19 @@ export const api = {
     });
   },
 
+  // --- Reviews ---
+  submitReview: async (appointmentId: string, doctorId: string, rating: number, comment: string): Promise<void> => {
+    await fetchWithAuth(`${API_URL}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify({ appointmentId, doctorId, rating, comment }),
+    });
+  },
+
+  checkReview: async (appointmentId: string): Promise<boolean> => {
+    const data = await fetchWithAuth(`${API_URL}/reviews/check/${appointmentId}`);
+    return data.hasReview;
+  },
+
   // --- AI Symptom Analysis ---
   analyzeSymptoms: async (symptoms: string): Promise<Omit<AiRecord, 'id' | 'date'>> => {
     const result = await fetchWithAuth(`${API_URL}/ai/predict`, {

@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '../types';
-import { 
-  Activity, 
-  Calendar, 
-  User as UserIcon, 
-  LogOut, 
-  Menu, 
+import {
+  Activity,
+  Calendar,
+  User as UserIcon,
+  LogOut,
+  Menu,
   X,
   LayoutDashboard,
   BrainCircuit,
   Settings,
-  ChevronDown
+  ChevronDown,
+  ClipboardList
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Footer } from './Footer';
@@ -75,6 +76,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 <>
                   <NavItem to="/book-appointment" icon={Calendar} label="Appointments" />
                   <NavItem to="/symptom-checker" icon={BrainCircuit} label="AI Checker" />
+                  <NavItem to="/medical-history" icon={ClipboardList} label="History" />
                 </>
               )}
             </nav>
@@ -154,6 +156,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 <>
                   <NavItem to="/book-appointment" icon={Calendar} label="Appointments" />
                   <NavItem to="/symptom-checker" icon={BrainCircuit} label="AI Symptom Checker" />
+                  <NavItem to="/medical-history" icon={ClipboardList} label="Medical History" />
                 </>
               )}
                <NavItem to="/profile" icon={Settings} label="My Profile" />
