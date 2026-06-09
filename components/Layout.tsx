@@ -70,12 +70,12 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-1">
-              <NavItem 
-                to={user.role === UserRole.DOCTOR ? '/doctor-dashboard' : '/dashboard'} 
-                icon={LayoutDashboard} 
-                label="Dashboard" 
+              <NavItem
+                to={dashboardLink}
+                icon={LayoutDashboard}
+                label="Dashboard"
               />
-              
+
               {user.role === UserRole.PATIENT && (
                 <>
                   <NavItem to="/book-appointment" icon={Calendar} label="Appointments" />
@@ -159,10 +159,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         {isMobileMenuOpen && (
           <div className="md:hidden border-t border-slate-100 bg-white">
             <div className="px-4 py-3 space-y-2">
-               <NavItem 
-                to={user.role === UserRole.DOCTOR ? '/doctor-dashboard' : '/dashboard'} 
-                icon={LayoutDashboard} 
-                label="Dashboard" 
+               <NavItem
+                to={dashboardLink}
+                icon={LayoutDashboard}
+                label="Dashboard"
               />
               {user.role === UserRole.PATIENT && (
                 <>
