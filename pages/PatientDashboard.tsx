@@ -631,8 +631,13 @@ export const PatientDashboard: React.FC = () => {
                         const blob = new Blob([ab], { type: mime });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
-                        a.href = url; a.download = doc.name; a.click();
-                        URL.revokeObjectURL(url);
+                        a.href = url;
+                        a.download = doc.name;
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        setTimeout(() => URL.revokeObjectURL(url), 1000);
                       };
                       return (
                         <div key={i} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">

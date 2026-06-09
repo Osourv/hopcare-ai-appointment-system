@@ -393,15 +393,21 @@ export const DoctorDashboard: React.FC = () => {
                               'image/gif': 'image/gif',
                             };
                             const mime = mimeMap[doc.type] || 'application/octet-stream';
-                            const byteStr = atob(doc.data);
+                            const base64 = doc.data.includes(',') ? doc.data.split(',')[1] : doc.data;
+                            const byteStr = atob(base64);
                             const ab = new ArrayBuffer(byteStr.length);
                             const ia = new Uint8Array(ab);
                             for (let j = 0; j < byteStr.length; j++) ia[j] = byteStr.charCodeAt(j);
                             const blob = new Blob([ab], { type: mime });
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');
-                            a.href = url; a.download = doc.name; a.click();
-                            URL.revokeObjectURL(url);
+                            a.href = url;
+                            a.download = doc.name;
+                            a.style.display = 'none';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            setTimeout(() => URL.revokeObjectURL(url), 1000);
                           };
                           const handlePreview = () => {
                             if (doc.type.startsWith('image/')) {
