@@ -94,6 +94,13 @@ export const api = {
       phone: data.user.phone,
       specialization: data.user.specialization,
       availability: data.user.availability,
+      image: data.user.image,
+      hospital: data.user.hospital,
+      location: data.user.location,
+      qualifications: data.user.qualifications,
+      experience: data.user.experience,
+      consultationFee: data.user.consultationFee,
+      bio: data.user.bio,
     };
     localStorage.setItem('hopcare_current_user', JSON.stringify(user));
     return user;
