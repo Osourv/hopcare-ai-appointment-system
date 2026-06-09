@@ -13,6 +13,7 @@ const Doctor = require('./models/Doctor');
 const Appointment = require('./models/Appointment');
 const Notification = require('./models/Notification');
 const Review = require('./models/Review');
+const Message = require('./models/Message');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -750,6 +751,54 @@ app.get('/api/reviews/check/:appointmentId', authenticateToken, async (req, res)
   try {
     const review = await Review.findOne({ appointmentId: req.params.appointmentId });
     res.json({ hasReview: !!review });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// --- In-App Chat ---
+
+app.post('/api/messages', authenticateToken, async (req, res) => {
+  try {
+    const { appointmentId, content } = req.body;
+    if (!appointmentId || !content?.trim()) {
+      return res.status(400).json({ message: 'appointmentId and content are required' });
+    }
+
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+
+    const isPatient = appointment.patientId.toString() === req.user.id;
+    const isDoctor = appointment.doctorId.toString() === req.user.id;
+    if (!isPatient && !isDoctor) return res.status(403).json({ message: 'Not authorized' });
+
+    const message = new Message({
+      appointmentId,
+      senderId: req.user.id,
+      senderName: isPatient ? appointment.patientName : appointment.doctorName,
+      senderRole: isPatient ? 'patient' : 'doctor',
+      content: content.trim(),
+    });
+    await message.save();
+    res.json(message);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get('/api/messages/:appointmentId', authenticateToken, async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.appointmentId);
+    if (!appointment) return res.status(404).json({ message: 'Not found' });
+
+    const isPatient = appointment.patientId.toString() === req.user.id;
+    const isDoctor = appointment.doctorId.toString() === req.user.id;
+    if (!isPatient && !isDoctor) return res.status(403).json({ message: 'Not authorized' });
+
+    const messages = await Message.find({ appointmentId: req.params.appointmentId })
+      .sort({ createdAt: 1 })
+      .limit(200);
+    res.json(messages);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

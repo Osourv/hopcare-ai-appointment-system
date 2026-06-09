@@ -425,6 +425,18 @@ export const api = {
     });
   },
 
+  // --- Chat ---
+  sendChatMessage: async (appointmentId: string, content: string): Promise<any> => {
+    return await fetchWithAuth(`${API_URL}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ appointmentId, content }),
+    });
+  },
+
+  getChatMessages: async (appointmentId: string): Promise<any[]> => {
+    return await fetchWithAuth(`${API_URL}/messages/${appointmentId}`);
+  },
+
   // --- Reviews ---
   submitReview: async (appointmentId: string, doctorId: string, rating: number, comment: string): Promise<void> => {
     await fetchWithAuth(`${API_URL}/reviews`, {

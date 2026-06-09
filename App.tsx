@@ -1,6 +1,7 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { Layout } from './components/Layout';
 import { Landing } from './pages/Landing';
 import { Auth } from './pages/Auth';
@@ -25,6 +26,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode, role?: UserRole }> =
 
 const App: React.FC = () => {
   return (
+    <ThemeProvider>
     <AuthProvider>
       <Router>
         <Routes>
@@ -78,6 +80,7 @@ const App: React.FC = () => {
         </Routes>
       </Router>
     </AuthProvider>
+    </ThemeProvider>
   );
 };
 

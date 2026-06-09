@@ -2,7 +2,8 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Appointment, AiRecord, AppointmentStatus, UserRole, Doctor } from '../types';
-import { Calendar, Clock, MapPin, Activity, BrainCircuit, ArrowRight, X, FileText, User, Stethoscope, CheckCircle, AlertCircle, Trash2, Loader2, AlertTriangle, Video, Download, Paperclip, Star } from 'lucide-react';
+import { Calendar, Clock, MapPin, Activity, BrainCircuit, ArrowRight, X, FileText, User, Stethoscope, CheckCircle, AlertCircle, Trash2, Loader2, AlertTriangle, Video, Download, Paperclip, Star, MessageSquare } from 'lucide-react';
+import { ChatModal } from '../components/ChatModal';
 import { Link, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 
@@ -28,6 +29,9 @@ export const PatientDashboard: React.FC = () => {
   // Document upload state
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const docInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Chat state
+  const [chatAppointmentId, setChatAppointmentId] = useState<string | null>(null);
 
   // Review / rating state
   const reviewsLoadedRef = React.useRef(false);
@@ -764,6 +768,15 @@ export const PatientDashboard: React.FC = () => {
                      </button>
                    )}
                  </div>
+                 {selectedAppointment.status !== AppointmentStatus.CANCELLED && (
+                   <button
+                     type="button"
+                     onClick={() => setChatAppointmentId(selectedAppointment.id)}
+                     className="w-full bg-slate-100 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-200 transition-colors flex items-center justify-center gap-2"
+                   >
+                     <MessageSquare size={18} /> Chat with Doctor
+                   </button>
+                 )}
                  {(selectedAppointment.status === AppointmentStatus.CONFIRMED || selectedAppointment.status === AppointmentStatus.WAITING || selectedAppointment.status === AppointmentStatus.ACTIVE) && (
                    <button
                      type="button"
@@ -778,6 +791,16 @@ export const PatientDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Chat Modal */}
+      {chatAppointmentId && user && (
+        <ChatModal
+          appointmentId={chatAppointmentId}
+          currentUserId={user.id}
+          otherUserName={`Dr. ${appointments.find(a => a.id === chatAppointmentId)?.doctorName || 'Doctor'}`}
+          onClose={() => setChatAppointmentId(null)}
+        />
       )}
 
       {/* Rating Modal */}

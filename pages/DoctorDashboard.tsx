@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Appointment, AppointmentStatus, UserRole, User } from '../types';
-import { Calendar, CheckCircle, XCircle, Clock, User as UserIcon, Bell, Mail, Phone, Plus, X, Loader2, Video, FileText, File, Download, Paperclip } from 'lucide-react';
+import { Calendar, CheckCircle, XCircle, Clock, User as UserIcon, Bell, Mail, Phone, Plus, X, Loader2, Video, FileText, File, Download, Paperclip, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { ChatModal } from '../components/ChatModal';
 
 const AVAILABLE_TIME_SLOTS = Array.from({ length: 44 }, (_, i) => {
   const start = 8 * 60 + i * 15;
@@ -27,6 +28,7 @@ export const DoctorDashboard: React.FC = () => {
   const [loadingPatient, setLoadingPatient] = useState(false);
   const [prescriptionText, setPrescriptionText] = useState('');
   const [savingPrescription, setSavingPrescription] = useState(false);
+  const [chatAppointmentId, setChatAppointmentId] = useState<string | null>(null);
 
   const fetchAppointments = () => {
     if (user) {
@@ -327,6 +329,12 @@ export const DoctorDashboard: React.FC = () => {
                                 Mark Completed
                             </button>
                           )}
+                          <button
+                            onClick={() => setChatAppointmentId(appt.id)}
+                            className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg font-medium hover:bg-slate-100 transition-colors w-full text-xs"
+                          >
+                            <MessageSquare size={14} /> Chat
+                          </button>
                         </div>
                       )}
                     </div>
@@ -337,6 +345,16 @@ export const DoctorDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Chat Modal */}
+      {chatAppointmentId && user && (
+        <ChatModal
+          appointmentId={chatAppointmentId}
+          currentUserId={user.id}
+          otherUserName={appointments.find(a => a.id === chatAppointmentId)?.patientName || 'Patient'}
+          onClose={() => setChatAppointmentId(null)}
+        />
+      )}
 
       {/* Patient Details Modal */}
       {selectedPatient && (
