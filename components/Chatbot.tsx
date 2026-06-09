@@ -87,8 +87,6 @@ export const Chatbot = () => {
     await sendMessage(input);
   };
 
-  const hasUserMessages = messages.some(m => m.sender === 'user');
-
   return (
     <>
       {/* Floating Button */}
@@ -130,8 +128,8 @@ export const Chatbot = () => {
             </div>
           ))}
 
-          {/* FAQ Chips — shown only before first user message */}
-          {!hasUserMessages && !isTyping && (
+          {/* FAQ Chips — shown after every bot message */}
+          {!isTyping && messages.length > 0 && messages[messages.length - 1].sender === 'bot' && (
             <div className="pl-11 flex flex-wrap gap-2">
               {FAQ_CHIPS.map(chip => (
                 <button
