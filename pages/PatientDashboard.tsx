@@ -474,11 +474,11 @@ export const PatientDashboard: React.FC = () => {
           onClick={() => setSelectedAppointment(null)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-slide-up relative cursor-auto" 
+            className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-slide-up relative cursor-auto max-h-[90vh] flex flex-col"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="bg-slate-50 p-6 border-b border-slate-100 flex items-start justify-between">
+            <div className="bg-slate-50 p-6 border-b border-slate-100 flex items-start justify-between flex-shrink-0">
               <div className="flex items-center gap-4">
                  <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-blue-600 border border-slate-200 shadow-sm overflow-hidden">
                      {(() => {
@@ -508,7 +508,7 @@ export const PatientDashboard: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto">
               {/* Status Badge */}
               <div className="flex justify-between items-center">
                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status</span>
