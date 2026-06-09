@@ -563,41 +563,49 @@ export const PatientDashboard: React.FC = () => {
                 </div>
               )}
 
-              {/* Notes - Editable */}
+              {/* Notes */}
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
                    <FileText size={14} /> Patient Notes
                 </p>
-                <textarea
-                  value={notesInput}
-                  onChange={e => { setNotesInput(e.target.value); setNotesSaved(false); setNotesSaveError(''); }}
-                  placeholder="Add notes about your symptoms, concerns, or questions for the doctor..."
-                  rows={4}
-                  className="w-full bg-white p-4 rounded-xl border border-slate-200 text-sm text-slate-700 leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                {notesSaveError && (
-                  <p className="mt-1 text-xs text-red-500">{notesSaveError}</p>
+                {selectedAppointment.status === AppointmentStatus.COMPLETED ? (
+                  <div className="w-full bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm text-slate-700 leading-relaxed min-h-[80px]">
+                    {notesInput || <span className="text-slate-400 italic">No notes added.</span>}
+                  </div>
+                ) : (
+                  <>
+                    <textarea
+                      value={notesInput}
+                      onChange={e => { setNotesInput(e.target.value); setNotesSaved(false); setNotesSaveError(''); }}
+                      placeholder="Add notes about your symptoms, concerns, or questions for the doctor..."
+                      rows={4}
+                      className="w-full bg-white p-4 rounded-xl border border-slate-200 text-sm text-slate-700 leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    {notesSaveError && (
+                      <p className="mt-1 text-xs text-red-500">{notesSaveError}</p>
+                    )}
+                    <button
+                      type="button"
+                      disabled={isSavingNotes}
+                      onClick={async () => {
+                        setIsSavingNotes(true);
+                        setNotesSaveError('');
+                        try {
+                          await api.updateAppointmentNotes(selectedAppointment.id, notesInput);
+                          setAppointments(prev => prev.map(a => a.id === selectedAppointment.id ? { ...a, notes: notesInput } : a));
+                          setNotesSaved(true);
+                        } catch (e: any) {
+                          setNotesSaveError(e?.message || 'Failed to save notes. Please try again.');
+                        } finally {
+                          setIsSavingNotes(false);
+                        }
+                      }}
+                      className={`mt-2 w-full font-semibold py-2 rounded-xl transition-colors text-sm disabled:opacity-50 ${notesSaved ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                    >
+                      {isSavingNotes ? 'Saving...' : notesSaved ? '✓ Saved!' : 'Save Notes'}
+                    </button>
+                  </>
                 )}
-                <button
-                  type="button"
-                  disabled={isSavingNotes}
-                  onClick={async () => {
-                    setIsSavingNotes(true);
-                    setNotesSaveError('');
-                    try {
-                      await api.updateAppointmentNotes(selectedAppointment.id, notesInput);
-                      setAppointments(prev => prev.map(a => a.id === selectedAppointment.id ? { ...a, notes: notesInput } : a));
-                      setNotesSaved(true);
-                    } catch (e: any) {
-                      setNotesSaveError(e?.message || 'Failed to save notes. Please try again.');
-                    } finally {
-                      setIsSavingNotes(false);
-                    }
-                  }}
-                  className={`mt-2 w-full font-semibold py-2 rounded-xl transition-colors text-sm disabled:opacity-50 ${notesSaved ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                >
-                  {isSavingNotes ? 'Saving...' : notesSaved ? '✓ Saved!' : 'Save Notes'}
-                </button>
               </div>
 
               {/* Footer Action */}
