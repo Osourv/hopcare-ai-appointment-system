@@ -44,12 +44,15 @@ export const api = {
       body: JSON.stringify({ email, password, role }),
     });
 
-    // Store token
+    // Non-admin users go through OTP — signal caller to show OTP screen
+    if (data.requiresOtp) {
+      throw new Error('__requires_otp__');
+    }
+
     if (data.token) {
       localStorage.setItem('token', data.token);
     }
 
-    // Store user info (matching mockBackend behavior)
     const user: User = {
       id: data.user.id || data.user._id,
       name: data.user.name,

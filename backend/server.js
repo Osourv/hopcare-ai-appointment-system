@@ -207,6 +207,15 @@ app.post('/api/auth/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
+    // Admin skips OTP — issue JWT directly
+    if (userRole === 'admin') {
+      const token = jwt.sign({ id: user._id, role: 'admin' }, JWT_SECRET);
+      return res.json({
+        token,
+        user: { id: user._id, name: user.name, email: user.email, role: 'admin', phone: user.phone }
+      });
+    }
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000, user, userRole });
 

@@ -216,11 +216,22 @@ export const Auth: React.FC = () => {
         setStep('otp');
         setResendCooldown(60);
       } else {
-        // Request OTP — backend verifies credentials and sends email
-        await api.requestOtp(formData.email, formData.password);
-        setPendingEmail(formData.email);
-        setStep('otp');
-        setResendCooldown(60);
+        try {
+          const loggedInUser = await login(formData.email, formData.password);
+          // Direct login (admin bypasses OTP)
+          if (loggedInUser.role === UserRole.ADMIN) navigate('/admin');
+          else if (loggedInUser.role === UserRole.DOCTOR) navigate('/doctor-dashboard');
+          else navigate('/dashboard');
+          return;
+        } catch (err: any) {
+          if (err.message === '__requires_otp__') {
+            setPendingEmail(formData.email);
+            setStep('otp');
+            setResendCooldown(60);
+          } else {
+            throw err;
+          }
+        }
       }
     } catch (err: any) {
       console.error(err);
