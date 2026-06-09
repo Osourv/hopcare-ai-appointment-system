@@ -658,23 +658,26 @@ export const PatientDashboard: React.FC = () => {
                 ) : (
                   <div className="space-y-2">
                     {(selectedAppointment.documents || []).map((doc, i) => {
-                      const handleDocDownload = () => {
-                        const base64 = doc.data.includes(',') ? doc.data.split(',')[1] : doc.data;
-                        const mime = doc.type || 'application/octet-stream';
-                        const byteStr = atob(base64);
-                        const ab = new ArrayBuffer(byteStr.length);
-                        const ia = new Uint8Array(ab);
-                        for (let j = 0; j < byteStr.length; j++) ia[j] = byteStr.charCodeAt(j);
-                        const blob = new Blob([ab], { type: mime });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = doc.name;
-                        a.style.display = 'none';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        setTimeout(() => URL.revokeObjectURL(url), 1000);
+                      const handleDocDownload = async () => {
+                        try {
+                          const fetched = await api.getAppointmentDocument(selectedAppointment.id, doc._id || String(i));
+                          const base64 = fetched.data.includes(',') ? fetched.data.split(',')[1] : fetched.data;
+                          const mime = fetched.type || 'application/octet-stream';
+                          const byteStr = atob(base64);
+                          const ab = new ArrayBuffer(byteStr.length);
+                          const ia = new Uint8Array(ab);
+                          for (let j = 0; j < byteStr.length; j++) ia[j] = byteStr.charCodeAt(j);
+                          const blob = new Blob([ab], { type: mime });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = fetched.name;
+                          a.style.display = 'none';
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          setTimeout(() => URL.revokeObjectURL(url), 1000);
+                        } catch { alert('Failed to download document.'); }
                       };
                       return (
                         <div key={i} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">

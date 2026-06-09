@@ -306,12 +306,32 @@ app.get('/api/appointments', authenticateToken, async (req, res) => {
       const appointments = await Appointment.find(query)
         .populate('patientId', 'image name')
         .populate('doctorId', 'image name')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
+      // Strip base64 document data from list — serve on-demand via /documents/:docId
+      appointments.forEach(appt => {
+        if (appt.documents) {
+          appt.documents = appt.documents.map(({ _id, name, type, uploadedAt }) => ({ _id, name, type, uploadedAt }));
+        }
+      });
       res.json(appointments);
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
   });
+
+// 4b. Get single document data (on-demand, avoids bandwidth from polling)
+app.get('/api/appointments/:id/documents/:docId', authenticateToken, async (req, res) => {
+  try {
+    const appt = await Appointment.findById(req.params.id);
+    if (!appt) return res.status(404).json({ message: 'Not found' });
+    const doc = appt.documents.id(req.params.docId);
+    if (!doc) return res.status(404).json({ message: 'Document not found' });
+    res.json({ data: doc.data, name: doc.name, type: doc.type });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
   // 5. Get User by ID
   app.get('/api/users/:id', authenticateToken, async (req, res) => {

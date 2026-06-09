@@ -102,23 +102,26 @@ export const MedicalHistory: React.FC = () => {
     doc.save(filename);
   };
 
-  const handleDocDownload = (docItem: { name: string; type: string; data: string }) => {
-    const base64 = docItem.data.includes(',') ? docItem.data.split(',')[1] : docItem.data;
-    const mime = docItem.type || 'application/octet-stream';
-    const byteStr = atob(base64);
-    const ab = new ArrayBuffer(byteStr.length);
-    const ia = new Uint8Array(ab);
-    for (let j = 0; j < byteStr.length; j++) ia[j] = byteStr.charCodeAt(j);
-    const blob = new Blob([ab], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = docItem.name;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const handleDocDownload = async (docItem: { _id?: string; name: string; type: string }, appointmentId: string, index: number) => {
+    try {
+      const fetched = await api.getAppointmentDocument(appointmentId, docItem._id || String(index));
+      const base64 = fetched.data.includes(',') ? fetched.data.split(',')[1] : fetched.data;
+      const mime = fetched.type || 'application/octet-stream';
+      const byteStr = atob(base64);
+      const ab = new ArrayBuffer(byteStr.length);
+      const ia = new Uint8Array(ab);
+      for (let j = 0; j < byteStr.length; j++) ia[j] = byteStr.charCodeAt(j);
+      const blob = new Blob([ab], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fetched.name;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch { alert('Failed to download document.'); }
   };
 
   if (loading) {
@@ -235,7 +238,7 @@ export const MedicalHistory: React.FC = () => {
                                 <div key={i} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
                                   <span className="text-xs text-slate-700 truncate max-w-[200px]">{docItem.name}</span>
                                   <button
-                                    onClick={() => handleDocDownload(docItem)}
+                                    onClick={() => handleDocDownload(docItem, appt.id, i)}
                                     className="text-xs text-blue-600 hover:underline font-semibold ml-2 shrink-0"
                                   >
                                     Download
