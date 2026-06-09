@@ -620,18 +620,32 @@ export const PatientDashboard: React.FC = () => {
                   <p className="text-xs text-slate-400 italic">No documents uploaded.</p>
                 ) : (
                   <div className="space-y-2">
-                    {(selectedAppointment.documents || []).map((doc, i) => (
-                      <div key={i} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                        <span className="text-xs text-slate-700 truncate max-w-[200px]">{doc.name}</span>
-                        <a
-                          href={doc.data}
-                          download={doc.name}
-                          className="text-xs text-blue-600 hover:underline font-semibold ml-2 shrink-0"
-                        >
-                          Download
-                        </a>
-                      </div>
-                    ))}
+                    {(selectedAppointment.documents || []).map((doc, i) => {
+                      const handleDocDownload = () => {
+                        const base64 = doc.data.includes(',') ? doc.data.split(',')[1] : doc.data;
+                        const mime = doc.type || 'application/octet-stream';
+                        const byteStr = atob(base64);
+                        const ab = new ArrayBuffer(byteStr.length);
+                        const ia = new Uint8Array(ab);
+                        for (let j = 0; j < byteStr.length; j++) ia[j] = byteStr.charCodeAt(j);
+                        const blob = new Blob([ab], { type: mime });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url; a.download = doc.name; a.click();
+                        URL.revokeObjectURL(url);
+                      };
+                      return (
+                        <div key={i} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                          <span className="text-xs text-slate-700 truncate max-w-[200px]">{doc.name}</span>
+                          <button
+                            onClick={handleDocDownload}
+                            className="text-xs text-blue-600 hover:underline font-semibold ml-2 shrink-0"
+                          >
+                            Download
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
