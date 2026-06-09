@@ -425,6 +425,19 @@ export const api = {
     });
   },
 
+  // --- Admin ---
+  getAdminStats: async (): Promise<any> => {
+    return await fetchWithAuth(`${API_URL}/admin/stats`);
+  },
+
+  getAdminAppointments: async (): Promise<any[]> => {
+    return await fetchWithAuth(`${API_URL}/admin/appointments`);
+  },
+
+  getAdminUsers: async (): Promise<{ patients: any[]; doctors: any[] }> => {
+    return await fetchWithAuth(`${API_URL}/admin/users`);
+  },
+
   // --- Chat ---
   sendChatMessage: async (appointmentId: string, content: string): Promise<any> => {
     return await fetchWithAuth(`${API_URL}/messages`, {

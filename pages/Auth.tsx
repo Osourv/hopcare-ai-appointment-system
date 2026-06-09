@@ -160,7 +160,9 @@ export const Auth: React.FC = () => {
         const user = isRegister
           ? await registerWithOtp(pendingEmail, otpInput)
           : await loginWithOtp(pendingEmail, otpInput);
-        if (user.role === UserRole.DOCTOR) {
+        if (user.role === UserRole.ADMIN) {
+          navigate('/admin');
+        } else if (user.role === UserRole.DOCTOR) {
           navigate('/doctor-dashboard');
         } else {
           navigate('/dashboard');

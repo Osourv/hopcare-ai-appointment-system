@@ -31,7 +31,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   if (!user) return <>{children}</>;
 
-  const dashboardLink = user.role === UserRole.DOCTOR ? '/doctor-dashboard' : '/dashboard';
+  const dashboardLink = user.role === UserRole.DOCTOR ? '/doctor-dashboard' : user.role === UserRole.ADMIN ? '/admin' : '/dashboard';
 
   const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
     const isActive = location.pathname === to;

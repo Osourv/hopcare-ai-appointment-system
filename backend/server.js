@@ -195,7 +195,7 @@ app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
 
     let user = await Patient.findOne({ email });
-    let userRole = 'patient';
+    let userRole = user ? (user.role || 'patient') : null;
 
     if (!user) {
       user = await Doctor.findOne({ email });
@@ -751,6 +751,67 @@ app.get('/api/reviews/check/:appointmentId', authenticateToken, async (req, res)
   try {
     const review = await Review.findOne({ appointmentId: req.params.appointmentId });
     res.json({ hasReview: !!review });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// --- Admin ---
+
+const requireAdmin = (req, res, next) => {
+  if (req.user?.role !== 'admin') return res.status(403).json({ message: 'Admin access required' });
+  next();
+};
+
+app.post('/api/admin/setup', async (req, res) => {
+  try {
+    const { secret, name, email, password } = req.body;
+    if (!secret || secret !== process.env.ADMIN_SETUP_SECRET) {
+      return res.status(403).json({ message: 'Invalid setup secret' });
+    }
+    const existing = await Patient.findOne({ role: 'admin' });
+    if (existing) return res.status(400).json({ message: 'Admin account already exists' });
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    const admin = new Patient({ name, email, password: hashedPassword, role: 'admin' });
+    await admin.save();
+    res.json({ success: true, message: 'Admin created. You can now log in.' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get('/api/admin/stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const [totalPatients, totalDoctors, totalAppointments, completedAppointments] = await Promise.all([
+      Patient.countDocuments({ role: { $ne: 'admin' } }),
+      Doctor.countDocuments(),
+      Appointment.countDocuments(),
+      Appointment.countDocuments({ status: 'completed' }),
+    ]);
+    res.json({ totalPatients, totalDoctors, totalAppointments, completedAppointments });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get('/api/admin/appointments', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const appointments = await Appointment.find().sort({ createdAt: -1 }).limit(50).lean();
+    res.json(appointments);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const [patients, doctors] = await Promise.all([
+      Patient.find({ role: { $ne: 'admin' } }).select('name email phone createdAt').lean(),
+      Doctor.find().select('name email specialization hospital rating reviewCount consultationFee createdAt').lean(),
+    ]);
+    res.json({ patients, doctors });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
