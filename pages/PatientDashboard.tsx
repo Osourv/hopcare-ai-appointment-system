@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Appointment, AiRecord, AppointmentStatus, UserRole, Doctor } from '../types';
-import { Calendar, Clock, MapPin, Activity, BrainCircuit, ArrowRight, X, FileText, User, Stethoscope, CheckCircle, AlertCircle, Trash2, Loader2, AlertTriangle, Video, Download } from 'lucide-react';
+import { Calendar, Clock, MapPin, Activity, BrainCircuit, ArrowRight, X, FileText, User, Stethoscope, CheckCircle, AlertCircle, Trash2, Loader2, AlertTriangle, Video, Download, Paperclip } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 
@@ -24,6 +24,10 @@ export const PatientDashboard: React.FC = () => {
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
   const [notesSaveError, setNotesSaveError] = useState('');
+
+  // Document upload state
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const docInputRef = React.useRef<HTMLInputElement>(null);
 
   // Memoize fetch function to reuse it
   const fetchData = useCallback(async () => {
@@ -562,6 +566,75 @@ export const PatientDashboard: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Documents */}
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1"><Paperclip size={14} /> Documents</span>
+                  {selectedAppointment.status !== AppointmentStatus.COMPLETED && selectedAppointment.status !== AppointmentStatus.CANCELLED && (
+                    <button
+                      type="button"
+                      onClick={() => docInputRef.current?.click()}
+                      disabled={isUploadingDoc}
+                      className="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 px-2 py-1 rounded hover:bg-blue-100 transition-colors font-semibold"
+                    >
+                      + Upload
+                    </button>
+                  )}
+                </p>
+                <input
+                  ref={docInputRef}
+                  type="file"
+                  multiple
+                  accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const files = e.target.files;
+                    if (!files || !selectedAppointment) return;
+                    setIsUploadingDoc(true);
+                    const existing = selectedAppointment.documents || [];
+                    const newDocs = [...existing];
+                    for (const file of Array.from(files)) {
+                      if (file.size > 5 * 1024 * 1024) { alert(`${file.name} exceeds 5MB`); continue; }
+                      if (newDocs.length >= 5) { alert('Max 5 files allowed'); break; }
+                      const data = await new Promise<string>((res) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => res(reader.result as string);
+                        reader.readAsDataURL(file);
+                      });
+                      newDocs.push({ name: file.name, type: file.type, data, uploadedAt: new Date().toISOString() });
+                    }
+                    try {
+                      await api.updateAppointmentDocuments(selectedAppointment.id, newDocs);
+                      setAppointments(prev => prev.map(a => a.id === selectedAppointment.id ? { ...a, documents: newDocs } : a));
+                      setSelectedAppointment(prev => prev ? { ...prev, documents: newDocs } : prev);
+                    } catch (err) {
+                      alert('Failed to upload document.');
+                    } finally {
+                      setIsUploadingDoc(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                {(selectedAppointment.documents || []).length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No documents uploaded.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(selectedAppointment.documents || []).map((doc, i) => (
+                      <div key={i} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                        <span className="text-xs text-slate-700 truncate max-w-[200px]">{doc.name}</span>
+                        <a
+                          href={doc.data}
+                          download={doc.name}
+                          className="text-xs text-blue-600 hover:underline font-semibold ml-2 shrink-0"
+                        >
+                          Download
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Notes */}
               <div>
