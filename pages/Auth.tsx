@@ -606,7 +606,7 @@ export const Auth: React.FC = () => {
               className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 mt-4"
             >
               {loading && <RefreshCw className="animate-spin" size={20} />}
-              {isRegister ? 'Create Account' : 'Sign In'}
+              {loading ? (isRegister ? 'Creating Account...' : 'Signing In...') : (isRegister ? 'Create Account' : 'Sign In')}
             </button>
           </form>
           </>)}
