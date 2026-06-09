@@ -250,7 +250,14 @@ app.post('/api/auth/verify-otp', async (req, res) => {
         role: record.userRole,
         phone: record.user.phone,
         specialization: record.user.specialization,
-        availability: record.user.availability
+        availability: record.user.availability,
+        image: record.user.image,
+        hospital: record.user.hospital,
+        location: record.user.location,
+        qualifications: record.user.qualifications,
+        experience: record.user.experience,
+        consultationFee: record.user.consultationFee,
+        bio: record.user.bio
       }
     });
   } catch (err) {
