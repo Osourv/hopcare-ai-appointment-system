@@ -80,9 +80,14 @@ mongoose.connect(MONGO_URI, {
   maxPoolSize: 2,
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
+  connectTimeoutMS: 10000,
+  family: 4, // force IPv4 — avoids hangs connecting to Atlas nodes over IPv6 on Render
 })
   .then(() => console.log('✅ MongoDB Connected'))
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
+
+mongoose.connection.on('error', err => console.error('❌ MongoDB Error:', err));
+mongoose.connection.on('disconnected', () => console.warn('⚠️ MongoDB Disconnected'));
 
 // Health check — used by UptimeRobot to keep Render free tier alive
 app.get('/api/health', async (req, res) => {
