@@ -84,6 +84,7 @@ mongoose.connect(MONGO_URI, {
   connectTimeoutMS: 10000,
   waitQueueTimeoutMS: 8000, // fail fast instead of hanging forever if pool is exhausted
   family: 4, // force IPv4 — avoids hangs connecting to Atlas nodes over IPv6 on Render
+  readPreference: 'secondaryPreferred', // avoid unreachable primary node, read from healthy secondary
 })
   .then(() => console.log('✅ MongoDB Connected'))
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
