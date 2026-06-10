@@ -77,10 +77,12 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Database Connection
 mongoose.connect(MONGO_URI, {
-  maxPoolSize: 2,
+  maxPoolSize: 5,
+  minPoolSize: 1,
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
   connectTimeoutMS: 10000,
+  waitQueueTimeoutMS: 8000, // fail fast instead of hanging forever if pool is exhausted
   family: 4, // force IPv4 — avoids hangs connecting to Atlas nodes over IPv6 on Render
 })
   .then(() => console.log('✅ MongoDB Connected'))
