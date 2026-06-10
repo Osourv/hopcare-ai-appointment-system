@@ -223,7 +223,7 @@ export const api = {
 
   // --- Data ---
   getDoctors: async (): Promise<Doctor[]> => {
-    const doctors = await fetchWithAuth(`${API_URL}/doctors?t=${Date.now()}`);
+    const doctors = await fetchWithAuth(`${API_URL}/doctors`);
     return doctors.map((doc: any): Doctor => ({
       id: doc._id || doc.id,
       name: doc.name,

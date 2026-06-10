@@ -298,6 +298,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 app.get('/api/doctors', async (req, res) => {
   try {
     const doctors = await Doctor.find().select('-password');
+    res.set('Cache-Control', 'public, max-age=60'); // cache 60s to cut repeat downloads of large profile images
     res.json(doctors);
   } catch (err) {
     res.status(500).json({ message: err.message });
