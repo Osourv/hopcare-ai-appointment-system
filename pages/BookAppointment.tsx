@@ -91,15 +91,17 @@ export const BookAppointment: React.FC = () => {
     let isMounted = true;
 
     const fetchDocs = () => {
-      api.getDoctors().then(data => {
+      api.getDoctorsAvailability().then(availabilityList => {
         if (!isMounted) return;
-        setDoctors(data);
-        
+        const availabilityMap = new Map(availabilityList.map(d => [d.id, d.availability]));
+
+        setDoctors(prev => prev.map(d => ({ ...d, availability: availabilityMap.get(d.id) ?? d.availability })));
+
         // Auto-update selected doctor to reflect new availability seamlessly
         setSelectedDoctor(prev => {
           if (!prev) return prev;
-          const currentDoc = data.find(d => d.id === prev.id);
-          return currentDoc || prev;
+          const availability = availabilityMap.get(prev.id);
+          return availability ? { ...prev, availability } : prev;
         });
 
       }).catch(console.error);

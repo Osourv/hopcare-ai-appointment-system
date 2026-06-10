@@ -305,6 +305,16 @@ app.get('/api/doctors', async (req, res) => {
   }
 });
 
+// 3b. Lightweight availability-only endpoint for frequent polling (no images/large fields)
+app.get('/api/doctors/availability', async (req, res) => {
+  try {
+    const doctors = await Doctor.find().select('_id availability');
+    res.json(doctors);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // 4. Get Appointments (For Patient or Doctor)
 app.get('/api/appointments', authenticateToken, async (req, res) => {
   try {

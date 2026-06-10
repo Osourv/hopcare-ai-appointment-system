@@ -45,14 +45,12 @@ export const PatientDashboard: React.FC = () => {
   const fetchData = useCallback(async () => {
     if (user) {
       try {
-        const [appts, history, docs] = await Promise.all([
+        const [appts, history] = await Promise.all([
           api.getAppointments(user.id, UserRole.PATIENT),
-          api.getAiHistory(),
-          api.getDoctors().catch(() => [])
+          api.getAiHistory()
         ]);
         setAppointments(appts);
         setAiHistory(history);
-        setDoctors(docs);
 
         const q: Record<string, { position: number; waitTime: number; isActive: boolean }> = {};
         for (const a of appts) {
@@ -77,6 +75,10 @@ export const PatientDashboard: React.FC = () => {
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  useEffect(() => {
+    api.getDoctors().then(setDoctors).catch(() => {});
+  }, []);
 
   // Reset confirmation state when modal closes or changes
   useEffect(() => {

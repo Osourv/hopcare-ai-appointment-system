@@ -244,6 +244,12 @@ export const api = {
     }));
   },
 
+  // Lightweight poll for availability only (no images) — used to keep slots in sync
+  getDoctorsAvailability: async (): Promise<{ id: string; availability: string[] }[]> => {
+    const data = await fetchWithAuth(`${API_URL}/doctors/availability`);
+    return data.map((d: any) => ({ id: d._id || d.id, availability: d.availability || [] }));
+  },
+
   getAppointments: async (): Promise<Appointment[]> => {
     try {
     const appointments = await fetchWithAuth(`${API_URL}/appointments`);
